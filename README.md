@@ -165,6 +165,8 @@ All configuration is done via environment variables. See the [Configuration](htt
 
 Coming from SharedMoments v1? v2 includes a built-in migration tool that transfers your data from MySQL to SQLite. See the [Migration Guide](https://github.com/tech-kev/SharedMoments/wiki/Migration-from-v1) for step-by-step instructions.
 
+For family memories from Memos, see the [optional Memos importer](docs/import-memos.md). It defaults to dry-run, migrates only `PROTECTED` entries when explicitly requested, and leaves the Memos source unchanged.
+
 
 
 ## 🌍 Translation
