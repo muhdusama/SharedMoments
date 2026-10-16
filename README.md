@@ -161,6 +161,10 @@ The script backs up your data, pulls the latest code, updates dependencies, and 
 
 All configuration is done via environment variables. See the [Configuration](https://github.com/tech-kev/SharedMoments/wiki/Configuration) wiki page for all available options including AI providers, notifications, passkeys, demo mode, and more.
 
+### Optional MCP assistant integration
+
+SharedMoments also provides an [MCP stdio adapter](docs/mcp.md) for assistants. It uses the existing authenticated API and account permissions, and requires no additional server port.
+
 ## 🔄 Migration from v1
 
 Coming from SharedMoments v1? v2 includes a built-in migration tool that transfers your data from MySQL to SQLite. See the [Migration Guide](https://github.com/tech-kev/SharedMoments/wiki/Migration-from-v1) for step-by-step instructions.

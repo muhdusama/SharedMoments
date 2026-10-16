@@ -1,0 +1,3 @@
+# Optional: only required on the machine running the MCP stdio adapter.
+mcp>=2.3,<3
+requests>=2.31

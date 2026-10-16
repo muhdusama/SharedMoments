@@ -745,9 +745,40 @@ def upload():
         }), 500
 
 
-@api_bp.route('/api/v2/items', methods=['POST', 'DELETE'])
+def _item_record(item):
+    """Return the small JSON representation used by automation clients."""
+    return {
+        'id': item.id,
+        'title': item.title,
+        'content': item.content,
+        'contentType': item.contentType,
+        'contentURL': item.contentURL,
+        'listType': item.listType,
+        'edition': item.edition,
+        'dateCreated': item.dateCreated.strftime('%Y-%m-%d') if item.dateCreated else None,
+    }
+
+
+@api_bp.route('/api/v2/items', methods=['GET', 'POST', 'DELETE'])
 @jwt_required
 def item():
+    if request.method == 'GET':
+        try:
+            list_type = int(request.args.get('listType', '1'))
+            limit = int(request.args.get('limit', '20'))
+        except ValueError:
+            return jsonify({'status': 'error', 'message': 'Invalid list type or limit'}), 400
+        if not 1 <= limit <= 100:
+            return jsonify({'status': 'error', 'message': 'Limit must be between 1 and 100'}), 400
+        perm_check = require_list_permission('View', list_type)
+        if perm_check is not None:
+            return perm_check
+        sm_edition = get_setting_by_name('sm_edition').value
+        items = get_items_by_type(list_type, 'desc', edition=sm_edition)
+        return jsonify({'status': 'success', 'data': {
+            'items': [_item_record(record) for record, _user in items[:limit]]
+        }}), 200
+
     if request.method == 'POST':
         try:
             title = request.form.get('title', '').strip()
@@ -889,6 +920,15 @@ def item_by_id(id):
 
             if not item:
                 return jsonify({'status': 'error', 'message': _('Item not found'), 'data': {'error_code': 404}}), 404
+
+            if request.args.get('format') == 'json':
+                perm_check = require_list_permission('View', item.listType)
+                if perm_check is not None:
+                    return perm_check
+                sm_edition = get_setting_by_name('sm_edition').value
+                if item.edition not in (sm_edition, 'all', None):
+                    return jsonify({'status': 'error', 'message': _('Item not found')}), 404
+                return jsonify({'status': 'success', 'data': _item_record(item)}), 200
 
             perm_check = require_list_permission('Update', item.listType)
             if perm_check is not None:
