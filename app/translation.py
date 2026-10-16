@@ -21,7 +21,7 @@ def load_translation_in_cache():
     log('info', f'Loaded {len(translations)} translations into cache')
 
 def _(fieldName):
-    languageCode = os.environ['LANG']
+    languageCode = session.get('lang', 'en-US')
 
     cache_key = f"translation:{fieldName}:{languageCode}"
     translation = cache.get(cache_key)
@@ -35,14 +35,18 @@ def set_locale(userID=None):
     try:
         if userID is None:
             locale = request.accept_languages.best_match(get_supported_languages())
+            date_format = 'locale'
         else:
-            locale = get_user_setting(userID, 'language').value
+            language_setting = get_user_setting(userID, 'language')
+            locale = language_setting.value if language_setting else None
+            format_setting = get_user_setting(userID, 'date_format')
+            date_format = format_setting.value if format_setting else 'locale'
 
         if locale is None:
             locale = 'en-US'
 
         session['lang'] = locale
-        os.environ['LANG'] = locale
+        session['date_format'] = date_format
 
         return True
     except Exception as e:
