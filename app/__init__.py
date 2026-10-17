@@ -57,6 +57,8 @@ from app.routes.memory_search import search_bp
 app.register_blueprint(search_bp)
 from app.routes.video_playback import video_bp
 app.register_blueprint(video_bp)
+from app.routes.memory_map import map_bp
+app.register_blueprint(map_bp)
 
 from app.routes.admin import admin_bp
 app.register_blueprint(admin_bp)

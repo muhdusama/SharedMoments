@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>{{ title.value }} - {{ _('Memories map') }}</title>
+  {% include 'layouts/head.html' %}
+  <link rel="stylesheet" href="{{ static_versioned('vendor/leaflet/leaflet.css') }}">
+  <style>
+    .memory-map { max-width:1000px; margin:0 auto; }
+    .memory-map-controls { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:.75rem; }
+    .memory-map-controls input, .memory-map-controls select { width:100%; }
+    .memory-map-controls label { display:block; }
+    #memory-map-canvas { height:430px; width:100%; border-radius:12px; }
+    .map-result { padding:.75rem; border-bottom:1px solid var(--outline-variant); overflow-wrap:anywhere; }
+    .map-result small { display:block; }
+  </style>
+</head>
+<body class="{% if darkmode and darkmode.value=='TRUE' %}dark{% endif %}">
+  {% include 'layouts/header.html' %}
+  <div class="overlay" id="div-overlay-nav-drawer" onclick="callUi('#dialog-nav-drawer')"></div>
+  <div id="div-render-nav-drawer">{% include 'layouts/nav-drawer.html' %}</div>
+  <main class="responsive memory-map">
+    <article class="surface-container-low">
+      <h5>{{ _('Memories map') }}</h5>
+      <p>{{ _('Locations are optional and private by default.') }}</p>
+      <form class="memory-map-controls" action="/memories/map" method="GET">
+        <label>{{ _('Trip') }} <input name="trip" maxlength="80" value="{{ trip_filter }}"></label>
+        <label>{{ _('Location name') }} <input name="place" maxlength="120" value="{{ place_filter }}"></label>
+        <button type="submit">{{ _('Filter') }}</button>
+      </form>
+      <p>{{ count }} {{ _('memories with locations') }}</p>
+      <p>{{ _('Map tiles are off by default. Loading the map will contact OpenStreetMap and reveal the area you view.') }}</p>
+      <button type="button" id="load-memory-map" onclick="loadMemoryMap()">{{ _('Load interactive map') }}</button>
+      <div id="memory-map-canvas" hidden aria-label="{{ _('Map of memories') }}"></div>
+      <p id="memory-map-status" role="status"></p>
+    </article>
+
+    {% if can_edit %}
+    <article class="surface-container-low">
+      <h6>{{ _('Add or update a location') }}</h6>
+      <p class="small">{{ _('Nothing is extracted from your photos automatically. Share with family only when you choose.') }}</p>
+      <div class="memory-map-controls">
+        <label>{{ _('Memory') }}
+          <select id="location-item" onchange="prefillMemoryLocation()">
+            <option value="">{{ _('Choose memory') }}</option>
+            {% for id, name in items %}<option value="{{ id }}">{{ name }}</option>{% endfor %}
+          </select>
+        </label>
+        <label>{{ _('Latitude') }} <input type="number" id="location-lat" min="-90" max="90" step="any"></label>
+        <label>{{ _('Longitude') }} <input type="number" id="location-lng" min="-180" max="180" step="any"></label>
+        <label>{{ _('Place label') }} <input id="location-label" maxlength="120"></label>
+        <label>{{ _('Trip or destination') }} <input id="location-trip" maxlength="80"></label>
+        <label>{{ _('Visibility') }}
+          <select id="location-visibility">
+            <option value="private">{{ _('Private — only me') }}</option>
+            <option value="family">{{ _('Family — all members with access') }}</option>
+          </select>
+        </label>
+      </div>
+      <nav class="wrap" style="margin-top:.75rem">
+        <button type="button" onclick="useDeviceLocation()">{{ _('Use my current position') }}</button>
+        <button type="button" onclick="saveMemoryLocation()">{{ _('Save location') }}</button>
+        <button class="border" type="button" onclick="deleteMemoryLocation()">{{ _('Remove location') }}</button>
+      </nav>
+    </article>
+    {% endif %}
+
+    <article class="surface-container-low">
+      <h6>{{ _('Located memories') }}</h6>
+      {% for point in points %}
+        <div class="map-result">
+          <a href="{{ point.url }}">{{ point.title }}</a>
+          <small>{{ point.label or _('Unnamed location') }}{% if point.trip %} · {{ point.trip }}{% endif %}
+          {% if point.visibility=='private' %} · {{ _('Private') }}{% endif %}</small>
+        </div>
+      {% else %}
+        <p>{{ _('No matching locations yet.') }}</p>
+      {% endfor %}
+    </article>
+  </main>
+  {% include 'layouts/footer.html' %}
+  <script src="{{ static_versioned('js/main.js') }}"></script>
+  <script>
+    window.memoryMapPoints = {{ points|tojson }};
+    window.memoryMapCsrf = {{ csrf_token|tojson }};
+  </script>
+  <script src="{{ static_versioned('vendor/leaflet/leaflet.js') }}"></script>
+  <script src="{{ static_versioned('js/memory-map.js') }}"></script>
+</body>
+</html>

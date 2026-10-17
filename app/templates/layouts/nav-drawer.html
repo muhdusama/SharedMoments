@@ -20,6 +20,7 @@
 
        {% if has_list_permission('View', 'Home') %}
        <a href="/memories/search"><i>search</i><span>{{ _('Search memories') }}</span></a>
+       <a href="/memories/map"><i>map</i><span>{{ _('Memories map') }}</span></a>
        {% endif %}
 
        {% if has_permission('Manage Lists') %}

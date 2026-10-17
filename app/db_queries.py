@@ -1,6 +1,6 @@
 from sqlalchemy.exc import IntegrityError
 from .models import (Passkey, User, Role, Permission, RolePermission, UserRole, Setting,
-    UserSetting, Item, ItemShare, MemoryTag, LivePhotoPair, ListType, SessionLocal, RelationshipStatus, Translation,
+    UserSetting, Item, ItemShare, MemoryTag, LivePhotoPair, MemoryLocation, ListType, SessionLocal, RelationshipStatus, Translation,
     Reminder, ReminderMute, PushSubscription, NotificationLog)
 from sqlalchemy.orm import joinedload
 from datetime import date
@@ -893,6 +893,7 @@ def delete_item(item_id):
         session.query(ItemShare).filter(ItemShare.itemID == item_id).delete()
         session.query(MemoryTag).filter(MemoryTag.itemID == item_id).delete()
         session.query(LivePhotoPair).filter(LivePhotoPair.itemID == item_id).delete()
+        session.query(MemoryLocation).filter(MemoryLocation.itemID == item_id).delete()
         item = session.query(Item).filter(Item.id == item_id).first()
         if item:
             session.delete(item)

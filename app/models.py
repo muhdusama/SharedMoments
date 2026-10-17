@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Date, Boolean, Text, TIMESTAMP, ForeignKey, LargeBinary, func, Index, UniqueConstraint, DateTime, event
+from sqlalchemy import create_engine, Column, Integer, String, Date, Boolean, Text, TIMESTAMP, ForeignKey, LargeBinary, Float, func, Index, UniqueConstraint, DateTime, event
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from config import Config
 from flask_bcrypt import generate_password_hash, check_password_hash
@@ -210,6 +210,17 @@ class LivePhotoPair(Base):
     stillFilename = Column(String(255), nullable=False)
     motionFilename = Column(String(255), nullable=False)
     __table_args__ = (UniqueConstraint('itemID', 'stillFilename', name='uq_live_photo_still'),)
+class MemoryLocation(Base):
+    """Manually assigned coordinates. Private by default, never read from EXIF."""
+    __tablename__ = 'memory_locations'
+    id = Column(Integer, primary_key=True)
+    itemID = Column(Integer, ForeignKey('items.id'), unique=True, nullable=False, index=True)
+    createdByUser = Column(Integer, ForeignKey('users.id'), nullable=False)
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    label = Column(String(120), nullable=False, default='')
+    trip = Column(String(80), nullable=False, default='')
+    visibility = Column(String(12), nullable=False, default='private')
 
 class ListType(Base):
     __tablename__ = 'listTypes'

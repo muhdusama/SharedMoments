@@ -35,6 +35,7 @@ SharedMoments is a self-hosted web app that lets you capture and relive your mos
 - **Private Quick Capture drafts** — Save iPhone Share Sheet images/videos for review using Apple Shortcuts and an authorised integration key ([setup](docs/ios-quick-capture.md))
 - **Memory Search** — Search by text, dates, author, tags and media type; save personal filters
 - **Compatible video playback** — Preserve MOV/HEVC originals while generating cached browser-friendly MP4 streams, with still+motion Live Photo pairing ([details](docs/video-live-photos.md))
+- **Memories Map** — Optional private or family-visible locations, filterable by trip and place ([privacy details](docs/memories-map.md))
 - **Gallery** — Create albums for trips, events, and more
 - **Timeline** — Chronicle significant moments (first kiss, moving in together, engagement, ...)
 - **Countdown** — Set a timer for upcoming events with live countdown card
