@@ -1,5 +1,6 @@
 """Synthetic search, access-control and saved-filter regression coverage."""
 from datetime import datetime
+from html.parser import HTMLParser
 
 import pytest
 from app.db_queries import create_item, delete_item
@@ -67,6 +68,18 @@ def test_tag_updates_validation_and_cross_edition_denial(adult_client, child_cli
     tagged = adult_client.get('/memories/search?tag=holidays')
     assert b'Autumn holiday' in tagged.data
     assert b'Birthday party' not in tagged.data
+    class TagButtons(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.buttons = []
+        def handle_starttag(self, tag, attrs):
+            if tag == 'button' and 'data-tags' in dict(attrs):
+                self.buttons.append(dict(attrs))
+    parsed = TagButtons()
+    parsed.feed(tagged.get_data(as_text=True))
+    assert len(parsed.buttons) == 1
+    assert parsed.buttons[0]['data-tags'] == '["family", "holidays"]'
+    assert 'JSON.parse(this.dataset.tags)' in parsed.buttons[0]['onclick']
     assert child_client.put(endpoint, json={'tags': ['wrong']}).status_code == 403
     assert adult_client.put(f'/api/v2/memories/{hidden}/tags', json={'tags':['hidden']},
                             headers=headers).status_code == 404

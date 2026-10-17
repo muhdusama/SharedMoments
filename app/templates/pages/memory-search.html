@@ -74,7 +74,8 @@
         <a class="chip" href="/gallery/{{ item.id }}">{{ _('Gallery') }}</a>
         {% endif %}
         {% if has_list_permission('Update', 'Home') %}
-        <button type="button" class="small border" onclick="editTags({{ item.id }}, {{ item_tags|tojson }})">{{ _('Edit tags') }}</button>
+        <button type="button" class="small border" data-tags="{{ item_tags|tojson|forceescape }}"
+                onclick="editTags({{ item.id }}, JSON.parse(this.dataset.tags))">{{ _('Edit tags') }}</button>
         {% endif %}
       </nav>
     </article>
