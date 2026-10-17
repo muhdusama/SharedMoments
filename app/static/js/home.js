@@ -214,6 +214,22 @@ function getFileContentType (dataUrl=null, filename=null) {
 
 }
 
+function findLivePhotoPairs(uploadedFiles) {
+   // iOS pairs a still frame and a motion video with matching original names.
+   const groups = new Map();
+   for (const file of uploadedFiles || []) {
+      const extension = file.original.split('.').pop().toLowerCase();
+      const stem = file.original.replace(/\.[^.]+$/, '').toLowerCase();
+      if (!groups.has(stem)) groups.set(stem, {});
+      const pair = groups.get(stem);
+      if (['jpg', 'jpeg', 'png', 'heic', 'heif', 'webp'].includes(extension))
+         pair.still = file.uploaded;
+      if (['mov', 'mp4'].includes(extension))
+         pair.motion = file.uploaded;
+   }
+   return [...groups.values()].filter(pair => pair.still && pair.motion);
+}
+
 let errorOnUpload = false; // Variable zum Speichern eines Fehlers beim Hochladen
 let failedUploadFiles = []; // File-Objekte der fehlgeschlagenen Uploads
 
@@ -433,6 +449,8 @@ async function saveNewHomeItem(btn) {
    formData.append("contentURL", window.uploadedUrls);
    formData.append("dateCreated", document.getElementById("div-create-home-item-date-created").value);
    formData.append("edition", edition);
+   const livePhotoPairs = JSON.stringify(findLivePhotoPairs(window.uploadedFilePairs));
+   formData.append("livePhotoPairs", livePhotoPairs);
 
    var originalContent = document.getElementById("div-render-home-items").innerHTML;
    showSkeletonCards('div-render-home-items');
@@ -484,6 +502,7 @@ async function saveNewHomeItem(btn) {
             formData.append("contentURL", window.uploadedUrls);
             formData.append("dateCreated", document.getElementById("div-create-home-item-date-created").value);
             formData.append("edition", edition);
+            formData.append("livePhotoPairs", livePhotoPairs);
             continue;
          } else {
             // Redirect oder anderer Fehler ohne Retry
@@ -501,6 +520,7 @@ async function saveNewHomeItem(btn) {
             formData.append("contentURL", window.uploadedUrls);
             formData.append("dateCreated", document.getElementById("div-create-home-item-date-created").value);
             formData.append("edition", edition);
+            formData.append("livePhotoPairs", livePhotoPairs);
             continue;
          }
       }
@@ -1103,6 +1123,7 @@ function formatTime(seconds) {
 async function uploadImages(mode) {
    failedUploadFiles = []; // Reset fehlgeschlagene Dateien
    let uploadedImages = []; // Liste zum Speichern der hochgeladenen Bilder
+   if (mode === 'create') window.uploadedFilePairs = [];
    let existingImages = []; // Liste zum Speichern der bereits vorhandenen Bilder
    let fileInputId, hiddenInputId; // Variablen zum Speichern der IDs der File-Inputs
 
@@ -1171,6 +1192,7 @@ async function uploadImages(mode) {
 
             if (result.status === "success") {
                uploadedImages.push(result.data.filename);
+               window.uploadedFilePairs.push({original: file.name, uploaded: result.data.filename});
             } else {
                showSnackbar('home', true, 'error', result.message, result, true);
                errorOnUpload = true;
@@ -1593,4 +1615,3 @@ function copyShareLink() {
       showSnackbar('home', true, 'green', _('Link copied to clipboard'), null, false);
    }
 }
-

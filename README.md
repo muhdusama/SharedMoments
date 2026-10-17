@@ -32,6 +32,7 @@ SharedMoments is a self-hosted web app that lets you capture and relive your mos
 ### Core
 
 - **Photo & Video Feed** — Upload and browse your shared moments on a personalized home page
+- **Compatible video playback** — Preserve MOV/HEVC originals while generating cached browser-friendly MP4 streams, with still+motion Live Photo pairing ([details](docs/video-live-photos.md))
 - **Gallery** — Create albums for trips, events, and more
 - **Timeline** — Chronicle significant moments (first kiss, moving in together, engagement, ...)
 - **Countdown** — Set a timer for upcoming events with live countdown card

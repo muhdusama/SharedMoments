@@ -157,6 +157,16 @@ class ItemShare(Base):
     item = relationship('Item', backref='shares')
     creator = relationship('User', foreign_keys=[createdByUser])
 
+
+class LivePhotoPair(Base):
+    """Associate an original still with its original motion video."""
+    __tablename__ = 'live_photo_pairs'
+    id = Column(Integer, primary_key=True)
+    itemID = Column(Integer, ForeignKey('items.id'), nullable=False, index=True)
+    stillFilename = Column(String(255), nullable=False)
+    motionFilename = Column(String(255), nullable=False)
+    __table_args__ = (UniqueConstraint('itemID', 'stillFilename', name='uq_live_photo_still'),)
+
 class ListType(Base):
     __tablename__ = 'listTypes'
     id = Column(Integer, primary_key=True, autoincrement=True)

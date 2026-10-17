@@ -51,6 +51,9 @@ app.register_blueprint(api_bp)
 app.register_blueprint(ai_bp)
 app.register_blueprint(share_bp)
 
+from app.routes.video_playback import video_bp
+app.register_blueprint(video_bp)
+
 from app.routes.admin import admin_bp
 app.register_blueprint(admin_bp)
 

@@ -766,6 +766,13 @@ def item():
             if perm_check is not None:
                 return perm_check
             content_url = request.form.get('contentURL', '')
+            from app.media_playback import validate_pairs, persist_pairs
+            try:
+                live_pairs = validate_pairs(
+                    json.loads(request.form.get('livePhotoPairs', '[]')), content_url
+                )
+            except (ValueError, TypeError, json.JSONDecodeError):
+                return jsonify({'status': 'error', 'message': 'Invalid Live Photo pair'}), 400
             created_by_user = g.user_id
             dateCreated = request.form.get('dateCreated', '')
 
@@ -789,6 +796,7 @@ def item():
                     lqip, media_w, media_h = generate_lqip(thumb_path)
 
             new_item_id = create_item(title, content, content_type, list_type, content_url, created_by_user, dateCreated, edition=edition, blurPlaceholder=lqip, mediaWidth=media_w, mediaHeight=media_h)
+            persist_pairs(new_item_id, live_pairs)
 
             log('info', f'Item created: ID={new_item_id}, ContentType={content_type}, ListType={list_type}, User={created_by_user}')
 
