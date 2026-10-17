@@ -317,9 +317,11 @@
       window.countdownListTypeId = '{{ countdown_list_type_id }}';
       window.listType = '{{ list_type }}';
       window.uploadedUrls = '';
+      window.memorySocialCsrf = {{ session.get('memory_social_csrf', '')|tojson }};
    </script>
    <script src="{{ static_versioned('js/main.js') }}"></script>
    <script src="{{ static_versioned('js/home.js') }}"></script>
+   <script src="{{ static_versioned('js/memory-social.js') }}"></script>
    <script src="{{ static_versioned('js/timeline.js') }}"></script>
    <script src="{{ static_versioned('js/countdown.js') }}"></script>
 
