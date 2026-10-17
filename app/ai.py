@@ -14,10 +14,20 @@ DEFAULT_SYSTEM_PROMPT = (
 
 
 def get_system_prompt():
+    from app.ai_settings import active_ai_config
+    config = active_ai_config()
+    if config and config.get('system_prompt'):
+        return config['system_prompt']
     return os.environ.get('AI_SYSTEM_PROMPT') or DEFAULT_SYSTEM_PROMPT
 
 
 def get_active_provider():
+    from app.ai_settings import active_ai_config
+    config = active_ai_config()
+    if config:
+        if config['provider'] == 'disabled':
+            return None
+        return 'openai_compatible' if config['provider'] in ('openai_compatible', 'ollama') else config['provider']
     if os.environ.get('OPENAI_API_KEY'):
         return 'openai'
     if os.environ.get('ANTHROPIC_API_KEY'):
@@ -37,6 +47,31 @@ def _stream_openai(text):
         messages=[
             {"role": "system", "content": get_system_prompt()},
             {"role": "user", "content": text},
+        ],
+        stream=True,
+    )
+    for chunk in stream:
+        delta = chunk.choices[0].delta
+        if delta.content:
+            yield delta.content
+
+
+def _stream_openai_compatible(text):
+    """Use standard Chat Completions at a configured provider, including Ollama /v1."""
+    import openai
+    from app.ai_settings import active_ai_config
+    config = active_ai_config()
+    client = openai.OpenAI(
+        api_key=config['api_key'],
+        base_url=config['base_url'],
+        max_retries=0,
+        timeout=45.0,
+    )
+    stream = client.chat.completions.create(
+        model=config['model'],
+        messages=[
+            {'role': 'system', 'content': get_system_prompt()},
+            {'role': 'user', 'content': text},
         ],
         stream=True,
     )
@@ -88,7 +123,12 @@ def _stream_ollama(text):
 
 
 def stream_ai_response(text):
-    provider = get_active_provider()
+    try:
+        provider = get_active_provider()
+    except Exception:
+        yield 'data: Error: AI provider configuration is unavailable.\n\n'
+        yield 'data: [DONE]\n\n'
+        return
     if not provider:
         yield "data: Error: No AI provider configured\n\n"
         yield "data: [DONE]\n\n"
@@ -96,6 +136,7 @@ def stream_ai_response(text):
 
     generators = {
         'openai': _stream_openai,
+        'openai_compatible': _stream_openai_compatible,
         'anthropic': _stream_anthropic,
         'ollama': _stream_ollama,
     }
@@ -103,7 +144,8 @@ def stream_ai_response(text):
     try:
         for chunk in generators[provider](text):
             yield f"data: {chunk}\n\n"
-    except Exception as e:
-        yield f"data: Error: {str(e)}\n\n"
+    except Exception:
+        # External provider errors may contain sensitive request headers or URLs.
+        yield 'data: Error: AI request failed. Check provider configuration.\n\n'
 
     yield "data: [DONE]\n\n"

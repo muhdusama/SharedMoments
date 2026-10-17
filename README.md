@@ -56,6 +56,7 @@ You can switch editions at any time without losing data.
 - Let AI help you write beautiful descriptions for your memories
 - Supports **OpenAI**, **Anthropic (Claude)**, and **Ollama** (local/self-hosted)
 - Customizable via environment variable
+- **AI provider settings** — Administrator-managed OpenAI-compatible endpoints and Ollama with encrypted credentials ([guide](docs/ai-settings.md))
 
 ### Notifications
 

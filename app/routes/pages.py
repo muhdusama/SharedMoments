@@ -215,6 +215,8 @@ def manage_translations():
 @require_permission('Read Setting')
 def settings():
     try:
+        import secrets
+        session.setdefault('ai_settings_csrf', secrets.token_urlsafe(32))
         settings = get_all_settings()
         list_types = get_all_list_types()
         title = get_display_title()
