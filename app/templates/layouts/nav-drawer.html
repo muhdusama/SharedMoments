@@ -32,6 +32,10 @@
        </a>
        {% endif %}
 
+       {% if has_list_permission('View', 'Home') %}
+       <a href="/captures"><i>photo_camera</i><span>{{ _('Capture inbox') }}</span></a>
+       {% endif %}
+
        <hr>
 
        {% if has_permission('Manage Translations') %}

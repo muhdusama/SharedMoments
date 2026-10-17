@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head><title>{{ title.value }} - {{ _('Capture inbox') }}</title>{% include 'layouts/head.html' %}</head>
+<body class="{% if darkmode and darkmode.value == 'TRUE' %}dark{% endif %}">
+{% include 'layouts/header.html' %}
+<div class="overlay" id="div-overlay-nav-drawer" onclick="callUi('#dialog-nav-drawer')"></div>
+<div id="div-render-nav-drawer">{% include 'layouts/nav-drawer.html' %}</div>
+<main class="responsive" style="max-width:950px;margin:0 auto;">
+  <article class="surface-container-low">
+    <h5>{{ _('Capture inbox') }}</h5>
+    <p>{{ _('Photos and videos received from your iPhone remain private drafts until you publish them.') }}</p>
+    <p>{{ _('Set up Apple Shortcuts from the integration guide to add photos through the Share Sheet.') }}</p>
+    <p id="capture-status" role="status"></p>
+  </article>
+  {% for draft in drafts %}
+  <article class="surface-container" data-draft-id="{{ draft.id }}">
+    <div class="row wrap">
+      {% if draft.status == 'pending' and draft.mediaType == 'image' %}
+      <img src="/api/v2/capture/drafts/{{ draft.id }}/media" alt="{{ _('Private draft preview') }}"
+           style="max-width:115px;max-height:115px;object-fit:cover;" loading="lazy">
+      {% endif %}
+      <div class="max">
+        <h6>{{ draft.title }}</h6>
+        <p class="small">{{ draft.filename }}</p>
+        <p style="white-space:pre-wrap;">{{ draft.description }}</p>
+        <small>{{ draft.status }}</small>
+      </div>
+    </div>
+    {% if draft.status == 'pending' %}
+    <nav class="wrap">
+      <button type="button" onclick="editCapture({{ draft.id }}, {{ draft.title|tojson }}, {{ draft.description|tojson }})">{{ _('Edit draft') }}</button>
+      <button type="button" onclick="publishCapture({{ draft.id }})">{{ _('Publish to family') }}</button>
+      <button class="border" type="button" onclick="removeCapture({{ draft.id }})">{{ _('Discard draft') }}</button>
+    </nav>
+    {% elif draft.status == 'published' and draft.published %}
+      <a class="chip" href="/home#article_{{ draft.published }}">{{ _('View in feed') }}</a>
+    {% else %}
+      <p class="small">{{ _('This draft requires manual reconciliation before retrying.') }}</p>
+    {% endif %}
+  </article>
+  {% else %}
+  <article>{{ _('No captured drafts yet') }}</article>
+  {% endfor %}
+</main>
+{% include 'layouts/footer.html' %}
+<script src="{{ static_versioned('js/main.js') }}"></script>
+<script>window.captureCsrf={{ csrf_token|tojson }};</script>
+<script src="{{ static_versioned('js/quick-capture.js') }}"></script>
+</body></html>

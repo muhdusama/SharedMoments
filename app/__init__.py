@@ -51,6 +51,9 @@ app.register_blueprint(api_bp)
 app.register_blueprint(ai_bp)
 app.register_blueprint(share_bp)
 
+from app.routes.quick_capture import capture_bp
+app.register_blueprint(capture_bp)
+
 from app.routes.admin import admin_bp
 app.register_blueprint(admin_bp)
 
