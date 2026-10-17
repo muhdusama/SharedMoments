@@ -76,6 +76,7 @@ You can switch editions at any time without losing data.
 ### Security & Authentication
 
 - Secure login with email & password
+- **Scoped API keys** — Create and revoke per-user integration keys without sharing passwords ([setup](docs/api-keys.md))
 - **Passkey** — Log in without a password using a security key
 - **Password Reset** — Reset via email link on the login page (requires SMTP) or via CLI: `python manage.py set-password <email>`
 - Manage users, roles, and permissions in the admin panel

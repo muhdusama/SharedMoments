@@ -236,6 +236,8 @@ def settings():
 @jwt_required
 def user_settings():
     try:
+        import secrets
+        session.setdefault('api_key_csrf', secrets.token_urlsafe(32))
         ensure_notification_settings(g.user_id)
         settings = get_all_settings()
         list_types = get_all_list_types()

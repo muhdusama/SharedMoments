@@ -55,6 +55,21 @@ class Passkey(Base):
 
     user = relationship('User', back_populates='passkeys')
 
+
+class ApiKey(Base):
+    """Hashed, revocable API credential owned by one existing user."""
+    __tablename__ = 'api_keys'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    userID = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    name = Column(String(80), nullable=False)
+    keyHash = Column(String(64), unique=True, nullable=False)
+    keyPrefix = Column(String(16), nullable=False)
+    scope = Column(String(12), nullable=False)
+    createdAt = Column(DateTime, nullable=False)
+    expiresAt = Column(DateTime, nullable=False)
+    revokedAt = Column(DateTime, nullable=True)
+    lastUsedAt = Column(DateTime, nullable=True)
+
 class Role(Base):
     __tablename__ = 'roles'
     id = Column(Integer, primary_key=True, autoincrement=True)

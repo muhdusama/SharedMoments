@@ -27,6 +27,49 @@ from app.permissions import require_permission, require_list_permission
 
 api_bp = Blueprint('api', __name__)
 
+
+def _api_key_csrf_valid():
+    """Protect credential issuance/revocation from cross-site form requests."""
+    import hmac
+    if not request.is_json or not request.cookies.get('jwt_token'):
+        return False
+    expected = session.get('api_key_csrf', '')
+    provided = request.headers.get('X-CSRF-Token', '')
+    return bool(expected and provided and hmac.compare_digest(expected, provided))
+
+
+@api_bp.route('/api/v2/api-keys', methods=['GET', 'POST'])
+@jwt_required
+def api_keys():
+    from app.api_keys import create_key, list_keys
+    if request.method == 'GET':
+        return jsonify({'status': 'success', 'data': {'keys': list_keys(g.user_id)}})
+    if not _api_key_csrf_valid():
+        return jsonify({'status': 'error', 'message': 'CSRF validation failed'}), 403
+    data = request.get_json()
+    try:
+        expiry_days = int(data.get('expiry_days', 90))
+        token, key_id = create_key(
+            g.user_id, str(data.get('name', '')),
+            data.get('scope', 'read'), expiry_days,
+        )
+    except (ValueError, TypeError) as exc:
+        return jsonify({'status': 'error', 'message': str(exc)}), 400
+    response = jsonify({'status': 'success', 'data': {'id': key_id, 'key': token}})
+    response.headers['Cache-Control'] = 'no-store'
+    return response, 201
+
+
+@api_bp.route('/api/v2/api-keys/<int:key_id>/revoke', methods=['POST'])
+@jwt_required
+def api_key_revoke(key_id):
+    from app.api_keys import revoke_key
+    if not _api_key_csrf_valid():
+        return jsonify({'status': 'error', 'message': 'CSRF validation failed'}), 403
+    if not revoke_key(g.user_id, key_id):
+        return jsonify({'status': 'error', 'message': 'API key not found'}), 404
+    return jsonify({'status': 'success'})
+
 _export_jobs = {}
 _import_jobs = {}
 
