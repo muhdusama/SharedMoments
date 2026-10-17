@@ -52,6 +52,9 @@ def test_location_private_by_default_and_never_leaks_to_other_users(
     assert _put(admin_client, visible, admin_headers, label='Unsafe overwrite').status_code == 404
     assert _put(adult_client, hidden, own).status_code == 404
     assert _put(adult_client, visible, own, visibility='family').status_code == 200
+    assert _put(admin_client, visible, admin_headers, label='Unsafe family overwrite').status_code == 404
+    assert admin_client.delete(f'/api/v2/memories/{visible}/location',
+                               json={}, headers=admin_headers).status_code == 404
     assert b'Synthetic bay' in child_client.get('/memories/map').data
     assert b'Synthetic bay' in admin_client.get('/memories/map?trip=holiday').data
     assert b'Synthetic bay' not in admin_client.get('/memories/map?trip=unrelated').data
