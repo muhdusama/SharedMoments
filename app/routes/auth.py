@@ -147,6 +147,9 @@ def before_request():
             'api.item', 'api.item_by_id',
             'api.media', 'api.media_thumb', 'api.all_media_urls',
             'api.upload', 'api.upload_chunk',
+            # Optional iOS Shortcuts capture: key can create a private draft
+            # but cannot inspect, edit, discard, or publish that draft.
+            'quick_capture.create_capture_draft',
         }
         if request.endpoint not in allowed:
             return jsonify({'status': 'error', 'message': 'API key cannot access this endpoint'}), 403
