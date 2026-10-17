@@ -10,11 +10,16 @@ from app.db_queries import (
     get_all_list_types, get_setting_by_name, get_user_setting, get_user_by_id, get_all_settings,
     get_all_active_shares, deactivate_share
 )
-from app.models import User, Role, Permission, Passkey, RolePermission, UserRole, UserSetting, ApiKey, SessionLocal
+from app.models import (
+    User, Role, Permission, Passkey, RolePermission, UserRole, UserSetting,
+    ApiKey, CaptureDraft, SavedMemorySearch, MemoryLocation, PushSubscription,
+    ReminderMute, SessionLocal,
+)
 from app.logger import log
 from app.utils import generate_admin_filename
 from app.routes.pages import get_display_title
-from datetime import datetime
+from datetime import datetime, timezone
+from pathlib import Path
 import os
 
 admin_bp = Blueprint('admin', __name__)
@@ -369,7 +374,7 @@ def update_user_route(id):
 def delete_user_route(id):
     try:
         # Prevent deleting yourself
-        if id == g.user_id:
+        if id == g.user_id or id == 1:
             return jsonify({'status': 'error', 'message': _('You cannot delete your own account')}), 400
 
         # Prevent deleting the last admin
@@ -387,19 +392,49 @@ def delete_user_route(id):
             db_session.close()
 
         db_session = SessionLocal()
-        user = db_session.query(User).filter(User.id == id).first()
-        if not user:
+        try:
+            user = db_session.query(User).filter(User.id == id, User.deletedAt.is_(None)).first()
+            if not user:
+                return jsonify({'status': 'error', 'message': _('User not found')}), 404
+            old_profile = user.profilePicture
+            draft_filenames = [draft.filename for draft in
+                               db_session.query(CaptureDraft).filter_by(userID=id)
+                               if draft.status != 'published']
+            db_session.query(UserRole).filter_by(userID=id).delete()
+            db_session.query(ApiKey).filter_by(userID=id).delete()
+            db_session.query(UserSetting).filter_by(userID=id).delete()
+            db_session.query(Passkey).filter_by(userID=id).delete()
+            db_session.query(ReminderMute).filter_by(user_id=id).delete()
+            db_session.query(PushSubscription).filter_by(user_id=id).delete()
+            db_session.query(CaptureDraft).filter_by(userID=id).delete()
+            db_session.query(SavedMemorySearch).filter_by(userID=id).delete()
+            db_session.query(MemoryLocation).filter_by(
+                createdByUser=id, visibility='private').delete()
+            # Keep the ID reserved so shared posts and comments retain their author.
+            user.firstName = 'Former member'
+            user.lastName = ''
+            user.email = None
+            user.birthDate = None
+            user.profilePicture = 'profile-placeholder.jpg'
+            user.passwordHash = None
+            user.passwordSalt = None
+            user.deletedAt = datetime.now(timezone.utc).replace(tzinfo=None)
+            db_session.commit()
+        finally:
             db_session.close()
-            return jsonify({'status': 'error', 'message': _('User not found')}), 404
-
-        # Delete associated data
-        db_session.query(ApiKey).filter_by(userID=id).delete()
-        db_session.query(UserRole).filter(UserRole.userID == id).delete()
-        db_session.query(UserSetting).filter(UserSetting.userID == id).delete()
-        db_session.query(Passkey).filter(Passkey.userID == id).delete()
-        db_session.delete(user)
-        db_session.commit()
-        db_session.close()
+        from app.routes.quick_capture import _draft_folder
+        drafts_path = _draft_folder()
+        for filename in draft_filenames:
+            if filename == Path(filename).name:
+                try:
+                    (drafts_path / filename).unlink(missing_ok=True)
+                except OSError as exc:
+                    log('warning', f'Former member draft cleanup failed: {type(exc).__name__}')
+        if old_profile and old_profile != 'profile-placeholder.jpg' and old_profile == Path(old_profile).name:
+            try:
+                (Path(__file__).resolve().parent.parent / 'uploads' / 'profiles' / old_profile).unlink(missing_ok=True)
+            except OSError as exc:
+                log('warning', f'Former member profile cleanup failed: {type(exc).__name__}')
 
         log('info', f'User deleted via admin panel: ID {id}')
         return jsonify({

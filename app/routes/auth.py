@@ -59,6 +59,9 @@ def jwt_required(f):
         try:
             decoded_token = jwt.decode(token, get_secret_key(), algorithms=['HS256'])
             user_id = decoded_token.get('user_id')
+            user = get_user_by_id(user_id)
+            if not user or user.deletedAt is not None:
+                return redirect(url_for('auth.login'))
             g.user_id = user_id
         except jwt.ExpiredSignatureError:
             log('debug', f'Expired JWT token on {request.path}')
@@ -160,7 +163,7 @@ def before_request():
         if not user_id:
             return jsonify({'status': 'error', 'message': 'Invalid or insufficient API key'}), 401
         user = get_user_by_id(user_id)
-        if not user:
+        if not user or user.deletedAt is not None:
             return jsonify({'status': 'error', 'message': 'Invalid API key'}), 401
         setup_setting = get_setting_by_name('setup_complete')
         if not setup_setting or setup_setting.value != 'True':
@@ -192,7 +195,7 @@ def before_request():
                     return redirect(url_for('pages.setup'))
 
             user = get_user_by_id(user_id)
-            if user:
+            if user and user.deletedAt is None:
                 g.user_id = user_id
                 g.user_name = f'{user.firstName} {user.lastName}'.strip() or f'User {user_id}'
                 g.user_permissions = load_user_permissions(user_id)
@@ -335,7 +338,7 @@ def reset_password(token):
         return render_template('pages/reset-password.html', error=_('This reset link is invalid.'))
 
     user = get_user_by_id(user_id)
-    if not user:
+    if not user or user.deletedAt is not None:
         return render_template('pages/reset-password.html', error=_('This reset link is invalid.'))
 
     if request.method == 'POST':
