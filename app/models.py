@@ -157,6 +157,23 @@ class ItemShare(Base):
     item = relationship('Item', backref='shares')
     creator = relationship('User', foreign_keys=[createdByUser])
 
+
+class MemoryTag(Base):
+    __tablename__ = 'memory_tags'
+    id = Column(Integer, primary_key=True)
+    itemID = Column(Integer, ForeignKey('items.id'), nullable=False, index=True)
+    tag = Column(String(32), nullable=False, index=True)
+    __table_args__ = (UniqueConstraint('itemID', 'tag', name='uq_memory_tag'),)
+
+
+class SavedMemorySearch(Base):
+    __tablename__ = 'saved_memory_searches'
+    id = Column(Integer, primary_key=True)
+    userID = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    name = Column(String(80), nullable=False)
+    filters = Column(Text, nullable=False)
+    __table_args__ = (UniqueConstraint('userID', 'name', name='uq_saved_memory_search'),)
+
 class ListType(Base):
     __tablename__ = 'listTypes'
     id = Column(Integer, primary_key=True, autoincrement=True)

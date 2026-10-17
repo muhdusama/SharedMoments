@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>{{ title.value }} - {{ _('Search memories') }}</title>
+  {% include 'layouts/head.html' %}
+  <style>
+    .memory-search { max-width: 1000px; margin: 0 auto; }
+    .memory-search form { display: grid; gap: .65rem; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); }
+    .memory-search form label { display: flex; gap: .2rem; flex-direction: column; }
+    .memory-search input, .memory-search select { width: 100%; min-width: 0; }
+    .search-result { margin-top: 1rem; overflow-wrap: anywhere; }
+    .search-result p { white-space: pre-wrap; max-height: 12rem; overflow: auto; }
+    .search-tag { display: inline-block; margin: .15rem; padding: .1rem .55rem;
+                  border-radius: 20px; background: var(--secondary-container); }
+  </style>
+</head>
+<body class="{% if darkmode and darkmode.value == 'TRUE' %}dark{% endif %}">
+  {% include 'layouts/header.html' %}
+  <div class="overlay" id="div-overlay-nav-drawer" onclick="callUi('#dialog-nav-drawer')"></div>
+  <div id="div-render-nav-drawer">{% include 'layouts/nav-drawer.html' %}</div>
+  <main class="responsive memory-search">
+    <article class="surface-container-low">
+      <h5>{{ _('Search memories') }}</h5>
+      <form method="GET" action="/memories/search" role="search">
+        <label>{{ _('Search text') }} <input name="q" maxlength="150" value="{{ filters.q }}"></label>
+        <label>{{ _('From date') }} <input type="date" name="date_from" value="{{ filters.date_from }}"></label>
+        <label>{{ _('To date') }} <input type="date" name="date_to" value="{{ filters.date_to }}"></label>
+        <label>{{ _('Author') }}
+          <select name="author"><option value="">{{ _('All authors') }}</option>
+            {% for id, name in authors.items() %}
+            <option value="{{ id }}" {% if filters.author == id|string %}selected{% endif %}>{{ name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>{{ _('Tag') }}
+          <select name="tag"><option value="">{{ _('All tags') }}</option>
+            {% for tag in tags %}<option value="{{ tag }}" {% if filters.tag == tag %}selected{% endif %}>{{ tag }}</option>{% endfor %}
+          </select>
+        </label>
+        <label>{{ _('Media type') }}
+          <select name="media">
+            {% for key, label in [('any', _('All types')), ('photo', _('Photos')), ('video', _('Videos')), ('gallery', _('Galleries')), ('text', _('Text'))] %}
+            <option value="{{ key }}" {% if filters.media == key %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <div><button type="submit">{{ _('Search') }}</button></div>
+      </form>
+      <nav class="wrap" style="margin-top:1rem">
+        <button type="button" onclick="saveSearch()">{{ _('Save this search') }}</button>
+        <span class="max"></span>
+        <small>{{ total }} {{ _('results') }}</small>
+      </nav>
+      <p id="memory-search-status" role="status"></p>
+      {% if saved_searches %}
+      <p>{{ _('Saved searches') }}:</p>
+      <nav class="wrap">
+        {% for saved in saved_searches %}
+        <a class="chip" href="{{ url_for('memory_search.memory_search', q=saved.filters.q, tag=saved.filters.tag, author=saved.filters.author, date_from=saved.filters.date_from, date_to=saved.filters.date_to, media=saved.filters.media) }}">{{ saved.name }}</a>
+        <button class="small transparent" type="button" onclick="deleteSearch({{ saved.id }})" aria-label="{{ _('Delete') }} {{ saved.name }}"><i>close</i></button>
+        {% endfor %}
+      </nav>
+      {% endif %}
+    </article>
+    {% for item, author, item_tags in results %}
+    <article class="search-result surface-container" data-item-id="{{ item.id }}">
+      <h6>{{ item.title }}</h6>
+      <small>{{ (item.dateCreated.strftime('%Y-%m-%d') if item.dateCreated else '') }} · {{ author.firstName or '' }} {{ author.lastName or '' }}</small>
+      {% if item.content %}<p>{{ item.content }}</p>{% endif %}
+      <div>{% for tag in item_tags %}<span class="search-tag">#{{ tag }}</span>{% endfor %}</div>
+      <nav class="wrap">
+        <a class="chip" href="/home#article_{{ item.id }}">{{ _('View in feed') }}</a>
+        {% if item.contentType in ('galleryStartWithImage','galleryStartWithVideo') %}
+        <a class="chip" href="/gallery/{{ item.id }}">{{ _('Gallery') }}</a>
+        {% endif %}
+        {% if has_list_permission('Update', 'Home') %}
+        <button type="button" class="small border" onclick="editTags({{ item.id }}, {{ item_tags|tojson }})">{{ _('Edit tags') }}</button>
+        {% endif %}
+      </nav>
+    </article>
+    {% else %}
+      <article>{{ _('No matching memories') }}</article>
+    {% endfor %}
+    <nav class="center-align wrap">
+      {% if page > 1 %}<a class="chip" href="/memories/search?{{ filter_query }}&page={{ page-1 }}">{{ _('Previous') }}</a>{% endif %}
+      {% if has_next %}<a class="chip" href="/memories/search?{{ filter_query }}&page={{ page+1 }}">{{ _('Next') }}</a>{% endif %}
+    </nav>
+  </main>
+  {% include 'layouts/footer.html' %}
+  <script src="{{ static_versioned('js/main.js') }}"></script>
+  <script>window.memorySearchCsrf = {{ csrf_token|tojson }};</script>
+  <script src="{{ static_versioned('js/memory-search.js') }}"></script>
+</body>
+</html>
