@@ -29,6 +29,8 @@ def config():
 
 def csrf(client):
     assert client.get('/settings').status_code == 200
+    response = client.get('/api/v2/ai/config')
+    assert response.status_code == 200
     with client.session_transaction() as sess:
         return sess['ai_settings_csrf']
 

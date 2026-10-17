@@ -87,6 +87,9 @@
 
 
               <legend>{{ _('General') }}</legend>
+              {% if has_permission('Access Admin Panel') and has_permission('Update Setting') %}
+              {% include 'layouts/ai-provider-settings.html' %}
+              {% endif %}
 
               {# Hier namespace, um die Variable edition außerhalb der Schleife verfügbar zu machen #}
 
@@ -175,28 +178,6 @@
               {% endfor %}
 
               {% if has_permission('Access Admin Panel') %}
-              {% if has_permission('Update Setting') %}
-              <legend>{{ _('AI writing provider') }}</legend>
-              <p class="small">{{ _('Configure a compatible AI endpoint for writing assistance. Prompts will be sent to the provider you choose.') }}</p>
-              <div id="ai-settings-panel" class="padding surface-container" style="border-radius:0.75rem;">
-                <div class="field border">
-                  <select id="ai-provider">
-                    <option value="environment">{{ _('Use existing environment configuration') }}</option>
-                    <option value="openai_compatible">{{ _('OpenAI-compatible API') }}</option>
-                    <option value="ollama">Ollama</option>
-                    <option value="disabled">{{ _('Disabled') }}</option>
-                  </select>
-                  <label>{{ _('AI provider') }}</label>
-                </div>
-                <div class="field border"><input id="ai-base-url" placeholder="https://api.openai.com/v1"><label>{{ _('Base URL') }}</label></div>
-                <div class="field border"><input id="ai-model" placeholder="Model identifier"><label>{{ _('Model') }}</label></div>
-                <div class="field border"><input id="ai-api-key" type="password" autocomplete="new-password" placeholder="Enter API key"><label>{{ _('API key (optional for Ollama)') }}</label></div>
-                <div class="field border textarea"><textarea id="ai-system-prompt" maxlength="4000" placeholder="Leave blank to use the current system prompt"></textarea><label>{{ _('Custom system prompt') }}</label></div>
-                <button type="button" onclick="saveAiSettings()">{{ _('Save AI provider settings') }}</button>
-                <p class="small" id="ai-settings-status" role="status"></p>
-              </div>
-              {% endif %}
-
               <!-- Data Management Section -->
               <legend>{{ _('Data Management') }}</legend>
 
@@ -681,9 +662,6 @@
     const currentEdition = '{{ settings.sm_edition.value }}';
     const settingsType = '{{ settings_type }}';
     const appLocale = '{{ session.get("lang", "en-US") }}';
-    {% if settings_type == 'settings' and has_permission('Update Setting') %}
-    const aiSettingsCsrf = {{ session.get('ai_settings_csrf', '')|tojson }};
-    {% endif %}
     {% if settings_type == 'user-settings' %}
     {% set push_val = 'True' %}
     {% for s in user_settings if s.name == 'notification_push_enabled' %}{% set push_val = s.value %}{% endfor %}
@@ -693,9 +671,6 @@
     {% endif %}
    </script>
    <script src="{{ static_versioned('js/settings.js') }}"></script>
-   {% if settings_type == 'settings' and has_permission('Update Setting') %}
-   <script src="{{ static_versioned('js/ai-settings.js') }}"></script>
-   {% endif %}
 
    </body>
 </html>

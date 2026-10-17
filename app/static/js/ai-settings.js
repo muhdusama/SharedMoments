@@ -1,9 +1,11 @@
 // Admin-only AI settings. Never send saved credentials to the browser.
+let aiSettingsCsrf = '';
 async function loadAiSettings() {
     if (!document.getElementById('ai-settings-panel')) return;
     const response = await fetch('/api/v2/ai/config', { cache: 'no-store' });
     if (!response.ok) return;
     const config = (await response.json()).data;
+    aiSettingsCsrf = config.csrf_token;
     document.getElementById('ai-provider').value = config.provider || 'environment';
     document.getElementById('ai-base-url').value = config.base_url || '';
     document.getElementById('ai-model').value = config.model || '';
