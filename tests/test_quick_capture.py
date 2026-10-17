@@ -103,3 +103,31 @@ def test_shortcut_can_store_a_video_with_orig_bytes(admin_client,draft_storage):
         assert (private/draft.filename).read_bytes()==b'synthetic movie data'
     finally:
         db.close()
+
+
+def test_api_key_capture_is_draft_only_when_scoped_keys_installed(
+        client, admin_client, draft_storage):
+    """Integration coverage becomes active when the companion PR #20 is merged."""
+    import importlib.util
+    if importlib.util.find_spec('app.api_keys') is None:
+        pytest.skip('Requires scoped API key PR #20')
+    from app.api_keys import create_key, revoke_key
+
+    write_key, write_id = create_key(2, 'Synthetic iOS Share Sheet', scope='read_write')
+    read_key, read_id = create_key(2, 'Synthetic read-only key', scope='read')
+    try:
+        assert _capture(client, {'Authorization': 'Bearer ' + read_key}).status_code == 401
+        uploaded = _capture(client, {'Authorization': 'Bearer ' + write_key})
+        assert uploaded.status_code == 201
+        draft_id = uploaded.json['data']['id']
+        # A scoped key can deposit only: no preview or publication.
+        assert client.get(f'/api/v2/capture/drafts/{draft_id}/media',
+                          headers={'Authorization':'Bearer '+write_key}).status_code == 403
+        assert client.post(f'/api/v2/capture/drafts/{draft_id}/publish',
+                           headers={'Authorization':'Bearer '+write_key}).status_code == 403
+        header = _csrf(admin_client)
+        assert admin_client.delete(f'/api/v2/capture/drafts/{draft_id}',
+                                   headers=header, json={}).status_code == 200
+    finally:
+        revoke_key(2,write_id)
+        revoke_key(2,read_id)
