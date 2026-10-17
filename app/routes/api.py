@@ -27,7 +27,6 @@ from app.permissions import require_permission, require_list_permission
 
 api_bp = Blueprint('api', __name__)
 
-
 _export_jobs = {}
 _import_jobs = {}
 
