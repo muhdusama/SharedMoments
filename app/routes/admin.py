@@ -10,7 +10,7 @@ from app.db_queries import (
     get_all_list_types, get_setting_by_name, get_user_setting, get_user_by_id, get_all_settings,
     get_all_active_shares, deactivate_share
 )
-from app.models import User, Role, Permission, Passkey, RolePermission, UserRole, UserSetting, SessionLocal
+from app.models import User, Role, Permission, Passkey, RolePermission, UserRole, UserSetting, ApiKey, SessionLocal
 from app.logger import log
 from app.utils import generate_admin_filename
 from app.routes.pages import get_display_title
@@ -393,6 +393,7 @@ def delete_user_route(id):
             return jsonify({'status': 'error', 'message': _('User not found')}), 404
 
         # Delete associated data
+        db_session.query(ApiKey).filter_by(userID=id).delete()
         db_session.query(UserRole).filter(UserRole.userID == id).delete()
         db_session.query(UserSetting).filter(UserSetting.userID == id).delete()
         db_session.query(Passkey).filter(Passkey.userID == id).delete()

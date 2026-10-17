@@ -48,8 +48,12 @@ def test_create_read_revoke_key(admin_client, client):
     assert admin_client.get('/user-settings', headers=headers).status_code == 403
     assert admin_client.get('/api/v2/api-keys', headers=headers).status_code == 403
     assert admin_client.post('/api/v2/api-keys', headers=headers, json={}).status_code == 403
-    assert admin_client.get('/api/v2/all-media-urls', headers={'Authorization': 'Bearer wrong'}).status_code == 401
-    assert admin_client.get('/api/v2/all-media-urls', headers={'Authorization': 'Basic wrong'}).status_code == 401
+    assert admin_client.get('/api/v2/all-media-urls', headers={'Authorization': 'Bearer wrong'}).status_code == 200
+    assert client.get('/api/v2/all-media-urls', headers={'Authorization': 'Bearer wrong'}).status_code == 302
+    # Non-SharedMoments Authorization headers must not hijack cookie auth.
+    assert admin_client.get('/api/v2/all-media-urls', headers={'Authorization': 'Basic wrong'}).status_code == 200
+    assert admin_client.get('/home', headers={'Authorization': 'Basic synthetic'}).status_code == 200
+    assert admin_client.get('/user-settings', headers={'Authorization': 'Basic synthetic'}).status_code == 200
 
     assert admin_client.post(f'/api/v2/api-keys/{key_id}/revoke',
                              json={}, headers={'X-CSRF-Token': csrf}).status_code == 200
@@ -110,3 +114,31 @@ def test_revocation_is_owner_scoped_and_expiry_is_enforced(admin_client):
     assert lookup_key(raw, 'GET') is None
     admin_client.post(f'/api/v2/api-keys/{owned_id}/revoke',
                       json={}, headers={'X-CSRF-Token': csrf})
+
+
+def test_user_deletion_invalidates_existing_integration_keys(admin_client):
+    from app.models import User, SessionLocal
+    db = SessionLocal()
+    try:
+        former = User(firstName='Former', email='synthetic-former@example.invalid')
+        former.hash_password('synthetic')
+        db.add(former)
+        db.commit()
+        old_id = former.id
+    finally:
+        db.close()
+    raw, _ = create_key(old_id, 'Disposable test key', scope='read_write')
+    assert lookup_key(raw, 'GET') == old_id
+    assert admin_client.delete(f'/api/v2/admin/users/{old_id}').status_code == 200
+    assert lookup_key(raw, 'GET') is None
+    db = SessionLocal()
+    try:
+        successor = User(firstName='Successor', email='synthetic-next@example.invalid')
+        successor.hash_password('synthetic')
+        db.add(successor)
+        db.commit()
+        assert lookup_key(raw, 'GET') is None
+        db.delete(successor)
+        db.commit()
+    finally:
+        db.close()

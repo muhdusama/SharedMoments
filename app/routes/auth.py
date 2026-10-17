@@ -142,7 +142,7 @@ def before_request():
     # API keys work only on an explicit, narrow allowlist of existing API routes.
     # Never allow a bearer key to access settings, account administration or HTML pages.
     auth_header = request.headers.get('Authorization')
-    if auth_header:
+    if auth_header and auth_header.lower().startswith('bearer smk_'):
         allowed = {
             'api.item', 'api.item_by_id',
             'api.media', 'api.media_thumb', 'api.all_media_urls',
@@ -153,7 +153,7 @@ def before_request():
         }
         if request.endpoint not in allowed:
             return jsonify({'status': 'error', 'message': 'API key cannot access this endpoint'}), 403
-        if not auth_header.startswith('Bearer ') or auth_header.count(' ') != 1:
+        if auth_header.count(' ') != 1:
             return jsonify({'status': 'error', 'message': 'Invalid API key'}), 401
         from app.api_keys import lookup_key
         user_id = lookup_key(auth_header.removeprefix('Bearer '), request.method)
