@@ -2,6 +2,8 @@
 
 from datetime import datetime, timedelta
 
+import pytest
+
 from app.api_keys import create_key, lookup_key
 
 
@@ -116,7 +118,8 @@ def test_revocation_is_owner_scoped_and_expiry_is_enforced(admin_client):
                       json={}, headers={'X-CSRF-Token': csrf})
 
 
-def test_user_deletion_invalidates_existing_integration_keys(admin_client):
+@pytest.mark.parametrize('days', [30, 0])
+def test_user_deletion_invalidates_existing_integration_keys(admin_client, days):
     from app.models import User, SessionLocal
     db = SessionLocal()
     try:
@@ -127,7 +130,7 @@ def test_user_deletion_invalidates_existing_integration_keys(admin_client):
         old_id = former.id
     finally:
         db.close()
-    raw, _ = create_key(old_id, 'Disposable test key', scope='read_write')
+    raw, _ = create_key(old_id, 'Disposable test key', scope='read_write', days=days)
     assert lookup_key(raw, 'GET') == old_id
     assert admin_client.delete(f'/api/v2/admin/users/{old_id}').status_code == 200
     assert lookup_key(raw, 'GET') is None
@@ -142,3 +145,48 @@ def test_user_deletion_invalidates_existing_integration_keys(admin_client):
         db.commit()
     finally:
         db.close()
+
+
+def test_perpetual_key_is_explicit_revocable_and_listed(admin_client):
+    from app.api_keys import create_key, lookup_key, list_keys, revoke_key, PERPETUAL_EXPIRY
+    from app.models import ApiKey, SessionLocal
+    response, csrf = _manage_key(admin_client, days=0, scope='read_write')
+    assert response.status_code == 201
+    raw, key_id = response.json['data']['key'], response.json['data']['id']
+    try:
+        db = SessionLocal()
+        try:
+            assert db.get(ApiKey, key_id).expiresAt == PERPETUAL_EXPIRY
+        finally:
+            db.close()
+        assert lookup_key(raw, 'GET') == 2
+        listed = admin_client.get('/api/v2/api-keys').json['data']['keys']
+        perpetual = next(entry for entry in listed if entry['id'] == key_id)
+        assert perpetual['perpetual'] is True
+        assert perpetual['expires'] is None
+        assert perpetual['last_used'] is not None
+        assert b'value="0"' in admin_client.get('/user-settings').data
+        assert admin_client.get('/api/v2/all-media-urls',
+                headers={'Authorization': 'Bearer ' + raw}).status_code == 200
+        assert admin_client.post('/api/v2/api-keys/' + str(key_id) + '/revoke',
+                json={}, headers={'X-CSRF-Token': csrf}).status_code == 200
+        assert lookup_key(raw, 'GET') is None
+    finally:
+        revoke_key(2, key_id)
+
+
+def test_invalid_expiry_duration_and_perpetual_active_limit(admin_client):
+    from app.api_keys import create_key, revoke_key
+    for days in (-1, 366, 'abc', True, 2.3):
+        response, _ = _manage_key(admin_client, days=days)
+        assert response.status_code == 400
+    ids = []
+    try:
+        for i in range(20):
+            _, key_id = create_key(2, f'Synthetic active #{i}', days=0)
+            ids.append(key_id)
+        with pytest.raises(ValueError, match='Maximum 20 active API keys'):
+            create_key(2, 'Too many keys', days=0)
+    finally:
+        for key_id in ids:
+            revoke_key(2, key_id)

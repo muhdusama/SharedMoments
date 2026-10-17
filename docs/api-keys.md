@@ -4,7 +4,7 @@ Create an integration key under **User settings → API keys**.
 
 - Keys belong to one existing account and inherit that user's permissions.
 - Choose **Read only** or **Read and write**; writes require both the key scope and the account's underlying role permissions.
-- Keys expire in 30, 90 or 365 days, can be revoked immediately, and are displayed only when created.
+- Keys expire in 30, 90 or 365 days by default. You may explicitly choose **Never (not recommended)** after a confirmation warning. Never-expiring keys remain valid until revoked or the owner is deleted; they still count toward the 20-active-key limit. All keys are shown only once and may be revoked immediately.
 - Only a SHA-256 digest is stored in SQLite; the original random 256-bit secret is never stored and cannot be recovered.
 - API keys work only with the application's allowlisted memory, media and upload API routes. They cannot open HTML pages or change security settings, users, notifications, credentials or other application administration routes.
 - When the optional iPhone Quick Capture feature is installed, a read/write key may also **create a private capture draft**. The key cannot preview drafts or publish them; those actions remain browser-session-only.
