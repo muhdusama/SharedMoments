@@ -18,7 +18,10 @@ from app.db_queries import (approve_new_translations_to_all_languages, create_ne
 from datetime import datetime
 from app.logger import log
 import os, json, subprocess, shutil, threading, uuid, zipfile, tempfile, time
-from app.models import Passkey, SessionLocal, User, UserRole, Setting, UserSetting, Role, Item, ListType, Reminder, ReminderMute
+from app.models import Passkey, SessionLocal, User, UserRole, Setting, UserSetting, Role, Item, ItemShare, ListType, Reminder, ReminderMute
+from app import models as feature_models
+from app.feature_archive import export_feature_rows, validate_feature_rows, wipe_feature_rows, restore_feature_rows, FEATURE_MODELS
+from pathlib import Path
 from app.utils import export_data, find_unmatched_translations, generate_lqip, generate_admin_filename
 from app.translation import _, load_translation_in_cache, set_locale, migrateTranslations
 from app.version import __version__, VERSION_MAJOR
@@ -2254,7 +2257,7 @@ def _run_import(import_id, zip_path, user_id, app_ref, is_setup=False):
                     members = zf.namelist()
                     for member in members:
                         member_path = os.path.realpath(os.path.join(extract_dir, member))
-                        if not member_path.startswith(os.path.realpath(extract_dir)):
+                        if os.path.commonpath((member_path, os.path.realpath(extract_dir))) != os.path.realpath(extract_dir):
                             job['status'] = 'error'
                             job['error'] = 'Invalid ZIP: path traversal detected'
                             return
@@ -2294,6 +2297,27 @@ def _run_import(import_id, zip_path, user_id, app_ref, is_setup=False):
                 job['error'] = f'Incompatible export version: {export_version}. Only v{VERSION_MAJOR}.x exports are supported.'
                 return
 
+            feature_data = data.get('featureData')
+            if not hasattr(User, 'deletedAt') and any(
+                    entry.get('deletedAt') for entry in data.get('users', [])):
+                raise ValueError('This backup requires deleted-user identity support')
+            if feature_data is not None:
+                validate_feature_rows(feature_data, data.get('users', []),
+                                      data['items'], Path(extract_dir))
+                if any(item.get('creatorSourceId') is not None and
+                       item['creatorSourceId'] not in {
+                           user['sourceId'] for user in data.get('users', [])
+                       } for item in data['items']):
+                    raise ValueError('Backup references an unknown memory author')
+            else:
+                check = SessionLocal()
+                try:
+                    if any(check.query(model).first() is not None
+                           for model in FEATURE_MODELS.values()):
+                        raise ValueError('Backup lacks feature metadata; use a newer export to preserve existing data')
+                finally:
+                    check.close()
+
             # Phase 2: Import data (30-60%)
             job['phase'] = 'importing'
             job['progress'] = 30
@@ -2331,10 +2355,14 @@ def _run_import(import_id, zip_path, user_id, app_ref, is_setup=False):
             from datetime import date as date_type
             wipe_session = SessionLocal()
             try:
+                wipe_feature_rows(wipe_session)
                 wipe_session.query(ReminderMute).delete()
                 wipe_session.query(Reminder).delete()
                 wipe_session.query(UserSetting).delete()
                 wipe_session.query(UserRole).delete()
+                if hasattr(feature_models, 'ApiKey'):
+                    wipe_session.query(feature_models.ApiKey).delete()
+                wipe_session.query(ItemShare).delete()
                 wipe_session.query(Item).delete()
                 wipe_session.commit()
             finally:
@@ -2343,11 +2371,30 @@ def _run_import(import_id, zip_path, user_id, app_ref, is_setup=False):
             # Import users (update existing by email, create new)
             users_imported = 0
             user_email_to_id = {}
+            user_id_map = {}
             user_session = SessionLocal()
             try:
                 for u_data in data.get('users', []):
                     try:
                         email = u_data.get('email', '')
+                        source_id = u_data.get('sourceId')
+                        if not email and source_id == 1:
+                            user_id_map[1] = 1
+                            continue
+                        if u_data.get('deletedAt'):
+                            # Retain a non-loginable owner for restored family history.
+                            existing = (user_session.get(User, source_id)
+                                        if isinstance(source_id, int) else None)
+                            if not existing or existing.deletedAt is None:
+                                existing = User(
+                                    firstName='Former member', lastName='',
+                                    deletedAt=datetime.fromisoformat(u_data['deletedAt'])
+                                )
+                                user_session.add(existing)
+                                user_session.flush()
+                            user_id_map[source_id] = existing.id
+                            users_imported += 1
+                            continue
                         if not email:
                             continue
                         birth_date = None
@@ -2375,6 +2422,8 @@ def _run_import(import_id, zip_path, user_id, app_ref, is_setup=False):
                             user_session.add(new_user)
                             user_session.flush()
                             user_email_to_id[email] = new_user.id
+                        if isinstance(source_id, int):
+                            user_id_map[source_id] = user_email_to_id[email]
                         users_imported += 1
                     except Exception as e:
                         log('error', f'Error importing user: {e}')
@@ -2481,6 +2530,7 @@ def _run_import(import_id, zip_path, user_id, app_ref, is_setup=False):
             skipped_duplicate = 0
             skipped_error = 0
             items_list = data.get('items', [])
+            item_id_map = {}
             total_items = len(items_list)
 
             for idx, item_data in enumerate(items_list):
@@ -2496,9 +2546,14 @@ def _run_import(import_id, zip_path, user_id, app_ref, is_setup=False):
                     date_created = datetime.fromisoformat(date_created_str) if date_created_str else datetime.utcnow()
 
                     creator_email = item_data.get('creatorEmail', '')
-                    item_owner = user_email_to_id.get(creator_email, user_id) if creator_email else user_id
+                    if feature_data is not None and item_data.get('creatorSourceId') is not None:
+                        item_owner = user_id_map.get(item_data['creatorSourceId'])
+                        if item_owner is None:
+                            raise ValueError('Missing original memory owner during restore')
+                    else:
+                        item_owner = user_email_to_id.get(creator_email, user_id) if creator_email else user_id
 
-                    create_item(
+                    created_item_id = create_item(
                         title=item_data.get('title', ''),
                         content=item_data.get('content', ''),
                         contentType=item_data.get('contentType', ''),
@@ -2511,6 +2566,8 @@ def _run_import(import_id, zip_path, user_id, app_ref, is_setup=False):
                         mediaWidth=item_data.get('mediaWidth'),
                         mediaHeight=item_data.get('mediaHeight')
                     )
+                    if isinstance(item_data.get('sourceId'), int):
+                        item_id_map[item_data['sourceId']] = created_item_id
                     imported += 1
                 except Exception as e:
                     log('error', f'Error importing item: {e}')
@@ -2531,7 +2588,7 @@ def _run_import(import_id, zip_path, user_id, app_ref, is_setup=False):
             media_dir = os.path.join(extract_dir, 'media')
             if os.path.isdir(media_dir):
                 media_files = []
-                for subfolder in ('images', 'videos', 'music', 'profiles'):
+                for subfolder in ('images', 'videos', 'music', 'profiles', 'capture-drafts'):
                     src_dir = os.path.join(media_dir, subfolder)
                     if not os.path.isdir(src_dir):
                         continue
@@ -2547,9 +2604,23 @@ def _run_import(import_id, zip_path, user_id, app_ref, is_setup=False):
                     dest_file = os.path.join(dest_dir, fname)
                     if not os.path.exists(dest_file):
                         shutil.copy2(src_file, dest_file)
+                        if subfolder == 'capture-drafts':
+                            os.chmod(dest_file, 0o600)
                         media_copied += 1
                     if total_media > 0:
                         job['progress'] = 60 + int((idx + 1) / total_media * 40)
+
+            if feature_data is not None:
+                restore_session = SessionLocal()
+                try:
+                    restore_feature_rows(restore_session, feature_data,
+                                         user_id_map, item_id_map)
+                    restore_session.commit()
+                except Exception:
+                    restore_session.rollback()
+                    raise
+                finally:
+                    restore_session.close()
 
             job['progress'] = 100
             job['status'] = 'done'
@@ -2640,6 +2711,20 @@ def _run_export(export_id, user_id, app_ref):
                 'userSettings': [],
                 'reminders': []
             }
+            feature_session = SessionLocal()
+            try:
+                export_data_json['featureData'] = export_feature_rows(feature_session)
+                pending_drafts = (feature_session.query(feature_models.CaptureDraft).filter(
+                    feature_models.CaptureDraft.status != 'published').all()
+                    if hasattr(feature_models, 'CaptureDraft') else [])
+                private_media = []
+                for draft in pending_drafts:
+                    source = Path(basedir).parent / 'uploads' / 'capture-drafts' / draft.filename
+                    if not source.is_file():
+                        raise FileNotFoundError('Private draft media missing; export cannot safely continue')
+                    private_media.append((str(source), f'media/capture-drafts/{draft.filename}'))
+            finally:
+                feature_session.close()
 
             for s in settings_all:
                 export_data_json['settings'].append({
@@ -2665,6 +2750,9 @@ def _run_export(export_id, user_id, app_ref):
             for user in users:
                 user_roles = [role_map.get(ur.roleID, '') for ur in user_roles_all if ur.userID == user.id]
                 export_data_json['users'].append({
+                    'sourceId': user.id,
+                    'deletedAt': (getattr(user, 'deletedAt', None).isoformat()
+                                  if getattr(user, 'deletedAt', None) else None),
                     'firstName': user.firstName,
                     'lastName': user.lastName,
                     'email': user.email,
@@ -2681,6 +2769,8 @@ def _run_export(export_id, user_id, app_ref):
                 lt_obj = lt_map.get(item.listType)
                 creator_obj = user_id_map.get(item.createdByUser)
                 export_data_json['items'].append({
+                    'sourceId': item.id,
+                    'creatorSourceId': item.createdByUser,
                     'title': item.title,
                     'content': item.content,
                     'contentType': item.contentType,
@@ -2757,6 +2847,8 @@ def _run_export(export_id, user_id, app_ref):
                 elif s.name in ('banner_image', 'family_banner_image', 'friends_banner_image') and s.value:
                     src = os.path.join(basedir, '..', 'uploads', 'images', s.value)
                     media_files.append((src, f'media/images/{s.value}'))
+
+            media_files.extend(private_media)
 
             # 3. Write ZIP (10-95%)
             export_dir = os.path.join(basedir, '..', 'export')
