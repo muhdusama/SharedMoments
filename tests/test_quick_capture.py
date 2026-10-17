@@ -1,6 +1,7 @@
 """iOS Shortcuts private draft capture tests with entirely synthetic files."""
 from io import BytesIO
 from pathlib import Path
+from html.parser import HTMLParser
 
 import pytest
 from app.db_queries import get_items_by_type, delete_item
@@ -131,3 +132,49 @@ def test_api_key_capture_is_draft_only_when_scoped_keys_installed(
     finally:
         revoke_key(2,write_id)
         revoke_key(2,read_id)
+
+
+def test_untrusted_api_key_draft_title_is_not_html_event_handler(
+        client, adult_client, draft_storage):
+    from importlib.util import find_spec
+    title = 'x" onfocus="alert(1)" autofocus="'
+    description = '<svg onload="alert(1)">'
+    key = key_id = None
+    if find_spec('app.api_keys') is not None:
+        from app.api_keys import create_key, revoke_key
+        key, key_id = create_key(3, 'Synthetic capture tester', scope='read_write')
+    try:
+        uploader = client if key else adult_client
+        headers = {'Authorization': 'Bearer ' + key} if key else _csrf(adult_client)
+        uploaded = _capture(uploader, headers,
+                            title=title, description=description,
+                            filename='synthetic.mov', media=b'synthetic video')
+        assert uploaded.status_code == 201
+        response = adult_client.get('/captures')
+        assert response.status_code == 200
+
+        class Buttons(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.edits = []
+                self.tags = []
+            def handle_starttag(self, tag, attrs):
+                self.tags.append(tag)
+                if tag == 'button' and 'data-title' in dict(attrs):
+                    self.edits.append(dict(attrs))
+
+        parsed = Buttons()
+        parsed.feed(response.get_data(as_text=True))
+        assert len(parsed.edits) == 1
+        assert parsed.edits[0]['data-title'] == title
+        assert parsed.edits[0]['data-description'] == description
+        assert 'onfocus' not in parsed.edits[0]
+        assert 'autofocus' not in parsed.edits[0]
+        assert 'svg' not in parsed.tags
+        token = _csrf(adult_client)
+        assert adult_client.delete(
+            f'/api/v2/capture/drafts/{uploaded.json["data"]["id"]}',
+            headers=token).status_code == 200
+    finally:
+        if key_id is not None:
+            revoke_key(3, key_id)

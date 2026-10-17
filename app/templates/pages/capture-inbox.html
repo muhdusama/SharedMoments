@@ -28,7 +28,8 @@
     </div>
     {% if draft.status == 'pending' %}
     <nav class="wrap">
-      <button type="button" onclick="editCapture({{ draft.id }}, {{ draft.title|tojson }}, {{ draft.description|tojson }})">{{ _('Edit draft') }}</button>
+      <button type="button" data-title="{{ draft.title }}" data-description="{{ draft.description }}"
+              onclick="editCapture({{ draft.id }}, this.dataset.title, this.dataset.description)">{{ _('Edit draft') }}</button>
       <button type="button" onclick="publishCapture({{ draft.id }})">{{ _('Publish to family') }}</button>
       <button class="border" type="button" onclick="removeCapture({{ draft.id }})">{{ _('Discard draft') }}</button>
     </nav>
