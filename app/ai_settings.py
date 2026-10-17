@@ -8,7 +8,7 @@ import os
 from urllib.parse import urlsplit
 
 from cryptography.fernet import Fernet, InvalidToken
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import OperationalError
 
 from app.models import SessionLocal, Setting
 from config import Config
@@ -27,9 +27,12 @@ def _stored():
     try:
         row = db.query(Setting).filter(Setting.name == NAME).first()
         return json.loads(row.value) if row and row.value else None
-    except SQLAlchemyError:
-        # This module can be imported before the usual startup bootstrap.
-        return None
+    except OperationalError as exc:
+        # Only tolerate a missing schema during initial startup. Never silently
+        # fall back to environment providers after an established DB fails.
+        if 'no such table: settings' in str(exc).lower():
+            return None
+        raise
     finally:
         db.close()
 
