@@ -202,6 +202,14 @@ class SavedMemorySearch(Base):
     name = Column(String(80), nullable=False)
     filters = Column(Text, nullable=False)
     __table_args__ = (UniqueConstraint('userID', 'name', name='uq_saved_memory_search'),)
+class LivePhotoPair(Base):
+    """Associate an original still with its original motion video."""
+    __tablename__ = 'live_photo_pairs'
+    id = Column(Integer, primary_key=True)
+    itemID = Column(Integer, ForeignKey('items.id'), nullable=False, index=True)
+    stillFilename = Column(String(255), nullable=False)
+    motionFilename = Column(String(255), nullable=False)
+    __table_args__ = (UniqueConstraint('itemID', 'stillFilename', name='uq_live_photo_still'),)
 
 class ListType(Base):
     __tablename__ = 'listTypes'

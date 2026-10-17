@@ -55,6 +55,8 @@ from app.routes.quick_capture import capture_bp
 app.register_blueprint(capture_bp)
 from app.routes.memory_search import search_bp
 app.register_blueprint(search_bp)
+from app.routes.video_playback import video_bp
+app.register_blueprint(video_bp)
 
 from app.routes.admin import admin_bp
 app.register_blueprint(admin_bp)

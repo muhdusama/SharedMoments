@@ -39,7 +39,8 @@ def share_view(token):
     if tracking and tracking.value == 'True':
         increment_share_view_count(share.id)
 
-    return render_template('pages/share.html', item=item, share=share, token=token, media_urls=media_urls)
+    from app.media_playback import live_photos_for
+    return render_template('pages/share.html', item=item, share=share, token=token, media_urls=media_urls, live_photos=live_photos_for(item.id))
 
 
 @share_bp.route('/s/<token>/verify', methods=['POST'])

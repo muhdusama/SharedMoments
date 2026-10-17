@@ -49,7 +49,7 @@
             {% if item.contentType == 'image' %}
                <img class="responsive" src="/s/{{ token }}/media/{{ media_urls[0] }}">
             {% elif item.contentType in ['video', 'video-mov'] %}
-               <div style="position:relative;cursor:pointer;" onclick="this.innerHTML='<video class=responsive controls autoplay playsinline><source src=/s/{{ token }}/media/{{ media_urls[0] }}></video>'">
+               <div style="position:relative;cursor:pointer;" onclick="this.innerHTML='<video class=responsive controls autoplay playsinline><source src=/s/{{ token }}/media/play/{{ media_urls[0] }} type=video/mp4></video>'">
                   <img class="responsive" src="/s/{{ token }}/media/thumb/{{ media_urls[0] }}">
                   <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;">
                      <i style="font-size:4rem;color:white;text-shadow:0 2px 4px rgba(0,0,0,0.5);">play_circle</i>
@@ -60,10 +60,19 @@
                   {% for url in media_urls %}
                      {% set video_extensions = ['.mp4', '.mov', '.avi', '.mkv'] %}
                      {% set lower_url = url|lower %}
-                     {% if lower_url[-4:] in video_extensions %}
+                     {% if url in live_photos.values() %}
+                     {# The motion track is presented with its still frame. #}
+                     {% elif url in live_photos %}
+                     <a data-lg-size="1200-720"
+                        data-video='{"source":[{"src":"/s/{{ token }}/media/play/{{ live_photos[url] }}","type":"video/mp4"}],"attributes":{"preload":false,"controls":true}}'
+                        data-thumb="/s/{{ token }}/media/{{ url }}" data-poster="/s/{{ token }}/media/{{ url }}">
+                       <img src="/s/{{ token }}/media/{{ url }}" style="border-radius:8px;">
+                       <i aria-label="{{ _('Live Photo') }}">motion_photos_on</i>
+                     </a>
+                     {% elif lower_url[-4:] in video_extensions or lower_url.endswith('.webm') %}
                      <a
                         data-lg-size="1200-720"
-                        data-video='{"source": [{"src":"/s/{{ token }}/media/{{ url }}", "type":"video/mp4"}], "attributes": {"preload": false, "controls": true}}'
+                        data-video='{"source": [{"src":"/s/{{ token }}/media/play/{{ url }}", "type":"video/mp4"}], "attributes": {"preload": false, "controls": true}}'
                         data-thumb="/s/{{ token }}/media/thumb/{{ url }}"
                         data-poster="/s/{{ token }}/media/thumb/{{ url }}"
                      >

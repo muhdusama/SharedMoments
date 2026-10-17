@@ -265,6 +265,7 @@ def user_settings():
 @jwt_required
 def gallery(id):
     try:
+        from app.media_playback import live_photos_for
         item = get_item_by_id(id)
 
         if not item:
@@ -278,7 +279,7 @@ def gallery(id):
         darkmode = get_user_setting(g.user_id, 'darkmode')
         user_data = get_user_by_id(g.user_id)
 
-        return render_template('pages/gallery.html', item=item, list_types=list_types, title=title, darkmode=darkmode, user_data=user_data)
+        return render_template('pages/gallery.html', item=item, list_types=list_types, title=title, darkmode=darkmode, user_data=user_data, live_photos=live_photos_for(item.id))
     except Exception as e:
         log('error', f'Error while rendering the pages/gallery.html-Template: {e}')
         return "An error occurred while rendering the page. Please check the server logs for details.", 500
