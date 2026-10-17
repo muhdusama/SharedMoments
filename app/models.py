@@ -157,6 +157,22 @@ class ItemShare(Base):
     item = relationship('Item', backref='shares')
     creator = relationship('User', foreign_keys=[createdByUser])
 
+
+class CaptureDraft(Base):
+    """Private pre-publication media from mobile sharing actions."""
+    __tablename__ = 'capture_drafts'
+    id = Column(Integer, primary_key=True)
+    userID = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=False, default='')
+    originalFilename = Column(String(255), nullable=False)
+    filename = Column(String(255), unique=True, nullable=False)
+    mediaType = Column(String(20), nullable=False)
+    capturedDate = Column(DateTime, nullable=True)
+    createdAt = Column(DateTime, nullable=False, default=func.now())
+    status = Column(String(20), nullable=False, default='pending')
+    publishedItemID = Column(Integer, nullable=True)
+
 class ListType(Base):
     __tablename__ = 'listTypes'
     id = Column(Integer, primary_key=True, autoincrement=True)
