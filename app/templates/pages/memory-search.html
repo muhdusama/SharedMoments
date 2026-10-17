@@ -5,13 +5,24 @@
   {% include 'layouts/head.html' %}
   <style>
     .memory-search { max-width: 1000px; margin: 0 auto; }
-    .memory-search form { display: grid; gap: .65rem; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); }
-    .memory-search form label { display: flex; gap: .2rem; flex-direction: column; }
-    .memory-search input, .memory-search select { width: 100%; min-width: 0; }
+    .memory-search-form { display: grid; gap: 0 1rem; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); align-items: end; }
+    .memory-search-form .field { margin-block: .5rem; }
+    .memory-search-form .wide { grid-column: 1 / -1; }
+    .memory-search-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: .5rem; }
+    .memory-search-actions .count { margin-left: auto; opacity: .75; }
+    .saved-searches { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: 1rem; }
+    .saved-searches .chip { margin: 0; }
     .search-result { margin-top: 1rem; overflow-wrap: anywhere; }
-    .search-result p { white-space: pre-wrap; max-height: 12rem; overflow: auto; }
-    .search-tag { display: inline-block; margin: .15rem; padding: .1rem .55rem;
-                  border-radius: 20px; background: var(--secondary-container); }
+    .search-result h6 { margin: 0; }
+    .search-result-meta { display: block; margin-top: .25rem; opacity: .75; }
+    .search-result-text { white-space: pre-wrap; margin: .75rem 0 0; display: -webkit-box;
+                          -webkit-line-clamp: 4; line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+    .search-result-tags { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .75rem; }
+    .search-tag { padding: .125rem .625rem; border-radius: 1rem; font-size: .8125rem;
+                  background: var(--secondary-container); color: var(--on-secondary-container); }
+    .search-result-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; }
+    .search-result-actions .chip { margin: 0; color: var(--primary); }
+    .search-pagination { display: flex; justify-content: center; gap: .5rem; margin: 1rem 0; }
   </style>
 </head>
 <body class="{% if darkmode and darkmode.value == 'TRUE' %}dark{% endif %}">
@@ -21,71 +32,100 @@
   <main class="responsive memory-search">
     <article class="surface-container-low">
       <h5>{{ _('Search memories') }}</h5>
-      <form method="GET" action="/memories/search" role="search">
-        <label>{{ _('Search text') }} <input name="q" maxlength="150" value="{{ filters.q }}"></label>
-        <label>{{ _('From date') }} <input type="date" name="date_from" value="{{ filters.date_from }}"></label>
-        <label>{{ _('To date') }} <input type="date" name="date_to" value="{{ filters.date_to }}"></label>
-        <label>{{ _('Author') }}
-          <select name="author"><option value="">{{ _('All authors') }}</option>
+      <form class="memory-search-form" method="GET" action="/memories/search" role="search">
+        <div class="field label prefix border wide">
+          <i>search</i>
+          <input name="q" id="memory-search-q" maxlength="150" value="{{ filters.q }}" placeholder=" ">
+          <label for="memory-search-q">{{ _('Search text') }}</label>
+        </div>
+        <div class="field label border">
+          <input type="date" name="date_from" id="memory-search-from" value="{{ filters.date_from }}" placeholder=" ">
+          <label for="memory-search-from">{{ _('From date') }}</label>
+        </div>
+        <div class="field label border">
+          <input type="date" name="date_to" id="memory-search-to" value="{{ filters.date_to }}" placeholder=" ">
+          <label for="memory-search-to">{{ _('To date') }}</label>
+        </div>
+        <div class="field label suffix border">
+          <select name="author" id="memory-search-author">
+            <option value="">{{ _('All authors') }}</option>
             {% for id, name in authors.items() %}
             <option value="{{ id }}" {% if filters.author == id|string %}selected{% endif %}>{{ name }}</option>
             {% endfor %}
           </select>
-        </label>
-        <label>{{ _('Tag') }}
-          <select name="tag"><option value="">{{ _('All tags') }}</option>
-            {% for tag in tags %}<option value="{{ tag }}" {% if filters.tag == tag %}selected{% endif %}>{{ tag }}</option>{% endfor %}
+          <label for="memory-search-author">{{ _('Author') }}</label>
+          <i>arrow_drop_down</i>
+        </div>
+        <div class="field label suffix border">
+          <select name="tag" id="memory-search-tag">
+            <option value="">{{ _('All tags') }}</option>
+            {% for tag in tags %}<option value="{{ tag }}" {% if filters.tag == tag %}selected{% endif %}>#{{ tag }}</option>{% endfor %}
           </select>
-        </label>
-        <label>{{ _('Media type') }}
-          <select name="media">
+          <label for="memory-search-tag">{{ _('Tag') }}</label>
+          <i>arrow_drop_down</i>
+        </div>
+        <div class="field label suffix border">
+          <select name="media" id="memory-search-media">
             {% for key, label in [('any', _('All types')), ('photo', _('Photos')), ('video', _('Videos')), ('gallery', _('Galleries')), ('text', _('Text'))] %}
             <option value="{{ key }}" {% if filters.media == key %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
           </select>
-        </label>
-        <div><button type="submit">{{ _('Search') }}</button></div>
+          <label for="memory-search-media">{{ _('Media type') }}</label>
+          <i>arrow_drop_down</i>
+        </div>
+        <div class="memory-search-actions wide">
+          <button type="submit"><i>search</i><span>{{ _('Search') }}</span></button>
+          <button type="button" class="border" onclick="saveSearch()"><i>bookmark_add</i><span>{{ _('Save search') }}</span></button>
+          {% if filter_query %}<a class="button transparent" href="/memories/search">{{ _('Clear') }}</a>{% endif %}
+          <span class="count">{{ total }} {{ _('results') }}</span>
+        </div>
       </form>
-      <nav class="wrap" style="margin-top:1rem">
-        <button type="button" onclick="saveSearch()">{{ _('Save this search') }}</button>
-        <span class="max"></span>
-        <small>{{ total }} {{ _('results') }}</small>
-      </nav>
       <p id="memory-search-status" role="status"></p>
       {% if saved_searches %}
-      <p>{{ _('Saved searches') }}:</p>
-      <nav class="wrap">
+      <div class="saved-searches" aria-label="{{ _('Saved searches') }}">
+        <i>bookmarks</i>
         {% for saved in saved_searches %}
-        <a class="chip" href="{{ url_for('memory_search.memory_search', q=saved.filters.q, tag=saved.filters.tag, author=saved.filters.author, date_from=saved.filters.date_from, date_to=saved.filters.date_to, media=saved.filters.media) }}">{{ saved.name }}</a>
-        <button class="small transparent" type="button" onclick="deleteSearch({{ saved.id }})" aria-label="{{ _('Delete') }} {{ saved.name }}"><i>close</i></button>
+        <span class="chip round small border">
+          <a href="{{ url_for('memory_search.memory_search', q=saved.filters.q, tag=saved.filters.tag, author=saved.filters.author, date_from=saved.filters.date_from, date_to=saved.filters.date_to, media=saved.filters.media) }}">{{ saved.name }}</a>
+          <i role="button" tabindex="0" onclick="deleteSearch({{ saved.id }})"
+             onkeydown="if (event.key === 'Enter') deleteSearch({{ saved.id }})"
+             aria-label="{{ _('Delete') }} {{ saved.name }}">close</i>
+        </span>
         {% endfor %}
-      </nav>
+      </div>
       {% endif %}
     </article>
     {% for item, author, item_tags in results %}
     <article class="search-result surface-container" data-item-id="{{ item.id }}">
       <h6>{{ item.title }}</h6>
-      <small>{{ (item.dateCreated.strftime('%Y-%m-%d') if item.dateCreated else '') }} · {{ author.firstName or '' }} {{ author.lastName or '' }}</small>
-      {% if item.content %}<p>{{ item.content }}</p>{% endif %}
-      <div>{% for tag in item_tags %}<span class="search-tag">#{{ tag }}</span>{% endfor %}</div>
-      <nav class="wrap">
-        <a class="chip" href="/home#article_{{ item.id }}">{{ _('View in feed') }}</a>
+      <small class="search-result-meta">{{ item.dateCreated|format_date_dmy if item.dateCreated else '' }} · {{ author.firstName or '' }} {{ author.lastName or '' }}</small>
+      {% if item.content %}<p class="search-result-text">{{ item.content }}</p>{% endif %}
+      {% if item_tags %}
+      <div class="search-result-tags">{% for tag in item_tags %}<a class="search-tag" href="/memories/search?tag={{ tag|urlencode }}">#{{ tag }}</a>{% endfor %}</div>
+      {% endif %}
+      <nav class="search-result-actions">
+        <a class="chip round small border" href="/home#article_{{ item.id }}"><i>open_in_new</i><span>{{ _('View in feed') }}</span></a>
         {% if item.contentType in ('galleryStartWithImage','galleryStartWithVideo') %}
-        <a class="chip" href="/gallery/{{ item.id }}">{{ _('Gallery') }}</a>
+        <a class="chip round small border" href="/gallery/{{ item.id }}"><i>photo_library</i><span>{{ _('Gallery') }}</span></a>
         {% endif %}
         {% if has_list_permission('Update', 'Home') %}
-        <button type="button" class="small border" data-tags="{{ item_tags|tojson|forceescape }}"
-                onclick="editTags({{ item.id }}, JSON.parse(this.dataset.tags))">{{ _('Edit tags') }}</button>
+        <button type="button" class="chip round small border" data-tags="{{ item_tags|tojson|forceescape }}"
+                onclick="editTags({{ item.id }}, JSON.parse(this.dataset.tags))"><i>sell</i><span>{{ _('Edit tags') }}</span></button>
         {% endif %}
       </nav>
     </article>
     {% else %}
-      <article>{{ _('No matching memories') }}</article>
+      <article class="search-result surface-container center-align">
+        <i class="large">search_off</i>
+        <p>{{ _('No matching memories') }}</p>
+      </article>
     {% endfor %}
-    <nav class="center-align wrap">
-      {% if page > 1 %}<a class="chip" href="/memories/search?{{ filter_query }}&page={{ page-1 }}">{{ _('Previous') }}</a>{% endif %}
-      {% if has_next %}<a class="chip" href="/memories/search?{{ filter_query }}&page={{ page+1 }}">{{ _('Next') }}</a>{% endif %}
+    {% if page > 1 or has_next %}
+    <nav class="search-pagination">
+      {% if page > 1 %}<a class="button border" href="/memories/search?{{ filter_query }}&page={{ page-1 }}"><i>chevron_left</i><span>{{ _('Previous') }}</span></a>{% endif %}
+      {% if has_next %}<a class="button border" href="/memories/search?{{ filter_query }}&page={{ page+1 }}"><span>{{ _('Next') }}</span><i>chevron_right</i></a>{% endif %}
     </nav>
+    {% endif %}
   </main>
   {% include 'layouts/footer.html' %}
   <script src="{{ static_versioned('js/main.js') }}"></script>
