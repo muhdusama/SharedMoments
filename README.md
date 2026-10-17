@@ -32,6 +32,7 @@ SharedMoments is a self-hosted web app that lets you capture and relive your mos
 ### Core
 
 - **Photo & Video Feed** — Upload and browse your shared moments on a personalized home page
+- **Memories Map** — Optional private or family-visible locations, filterable by trip and place ([privacy details](docs/memories-map.md))
 - **Gallery** — Create albums for trips, events, and more
 - **Timeline** — Chronicle significant moments (first kiss, moving in together, engagement, ...)
 - **Countdown** — Set a timer for upcoming events with live countdown card

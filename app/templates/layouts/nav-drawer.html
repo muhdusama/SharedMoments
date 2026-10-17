@@ -18,6 +18,10 @@
        {% endif %}
        {% endfor %}
 
+       {% if has_list_permission('View', 'Home') %}
+       <a href="/memories/map"><i>map</i><span>{{ _('Memories map') }}</span></a>
+       {% endif %}
+
        {% if has_permission('Manage Lists') %}
        <a onclick="callUi('#dialog-manage-list-types')">
        <i>tune</i>
