@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+   <head>
+      <title>{{ title.value }} - {{ _('Calendar') }}</title>
+      {% include 'layouts/head.html' %}
+      <style>
+         .memory-calendar { max-width: 860px; margin: 0 auto; }
+         .memory-calendar-table { width: 100%; border-collapse: separate; border-spacing: 0.35rem; table-layout: fixed; }
+         .memory-calendar-table th { text-align: center; font-weight: 500; padding: 0.35rem 0; }
+         .memory-calendar-table td { padding: 0; vertical-align: top; }
+         .memory-calendar-day {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 0.4rem; min-height: 4.4rem; border-radius: 0.8rem;
+            color: var(--on-surface); background: var(--surface-container);
+            text-decoration: none;
+         }
+         .memory-calendar-day:hover, .memory-calendar-day:focus-visible { outline: 2px solid var(--primary); }
+         .memory-calendar-day.has-posts { background: var(--secondary-container); color: var(--on-secondary-container); }
+         .memory-calendar-day.is-selected { outline: 3px solid var(--primary); }
+         .memory-calendar-day.is-today .day-number { text-decoration: underline; text-underline-offset: 0.2rem; }
+         .memory-calendar-count {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 1.4rem; border-radius: 1rem; padding: 0.1rem 0.3rem;
+            background: var(--primary); color: var(--on-primary);
+            font-size: 0.75rem; font-weight: 600;
+         }
+         .memory-calendar-empty { display: block; min-height: 4.4rem; }
+         .memory-calendar-post { margin-bottom: 1rem; }
+         .memory-calendar-post p { white-space: pre-wrap; overflow-wrap: anywhere; }
+         @media (max-width: 480px) {
+            .memory-calendar-table { border-spacing: 0.15rem; }
+            .memory-calendar-table th { font-size: 0.8rem; }
+            .memory-calendar-day, .memory-calendar-empty { min-height: 3.3rem; }
+         }
+      </style>
+   </head>
+   <body class="{% if darkmode.value == 'TRUE' %}dark{% endif %}">
+      {% include 'layouts/header.html' %}
+      <div class="overlay" id="div-overlay-nav-drawer" onclick="callUi('#dialog-nav-drawer')"></div>
+      <div id="div-render-nav-drawer">
+         {% include 'layouts/nav-drawer.html' %}
+      </div>
+
+      <main class="responsive memory-calendar">
+         <article class="surface-container-low">
+            <nav class="wrap" aria-label="{{ _('Calendar navigation') }}">
+               <h5 class="max">{{ _('Calendar') }}</h5>
+               <a class="chip" href="{{ url_for('pages.memory_calendar', date=today.isoformat()) }}#day-posts">{{ _('Today') }}</a>
+            </nav>
+            <nav class="center-align" aria-label="{{ _('Month navigation') }}">
+               {% if previous %}
+               <a class="circle transparent" href="{{ url_for('pages.memory_calendar', month=previous.strftime('%Y-%m')) }}" aria-label="{{ _('Previous month') }}"><i aria-hidden="true">chevron_left</i></a>
+               {% endif %}
+               <h6 class="max center-align" aria-live="polite">{{ month_title }}</h6>
+               {% if following %}
+               <a class="circle transparent" href="{{ url_for('pages.memory_calendar', month=following.strftime('%Y-%m')) }}" aria-label="{{ _('Next month') }}"><i aria-hidden="true">chevron_right</i></a>
+               {% endif %}
+            </nav>
+
+            <table class="memory-calendar-table">
+               <caption class="small center-align">{{ _('Choose a date to view its posts.') }}</caption>
+               <thead>
+                  <tr>
+                     {% for label in weekday_labels %}<th scope="col">{{ label }}</th>{% endfor %}
+                  </tr>
+               </thead>
+               <tbody>
+                  {% for week in weeks %}
+                  <tr>
+                     {% for day in week %}
+                     <td>
+                        {% if day %}
+                        {% set calendar_day = month.replace(day=day) %}
+                        {% set count = counts.get(day, 0) %}
+                        <a class="memory-calendar-day{% if count %} has-posts{% endif %}{% if calendar_day == selected %} is-selected{% endif %}{% if calendar_day == today %} is-today{% endif %}"
+                           href="{{ url_for('pages.memory_calendar', date=calendar_day.isoformat()) }}#day-posts"
+                           aria-label="{{ calendar_day|format_date_dmy }}: {{ count }} {{ _('posts') }}"
+                           {% if calendar_day == today %}aria-current="date"{% endif %}>
+                           <span class="day-number">{{ day }}</span>
+                           {% if count %}<span class="memory-calendar-count" aria-hidden="true">{{ count }}</span>{% endif %}
+                        </a>
+                        {% else %}
+                        <span class="memory-calendar-empty" aria-hidden="true"></span>
+                        {% endif %}
+                     </td>
+                     {% endfor %}
+                  </tr>
+                  {% endfor %}
+               </tbody>
+            </table>
+         </article>
+
+         <section id="day-posts" aria-labelledby="day-posts-title">
+            {% if selected %}
+            <h5 id="day-posts-title">{{ _('Posts for') }} {{ selected|format_date_dmy }}</h5>
+               {% for item in selected_items %}
+               <article class="memory-calendar-post surface-container">
+                  <h6>{{ item.title }}</h6>
+                  {% if item.content %}<p>{{ item.content }}</p>{% endif %}
+                  <nav class="right-align wrap">
+                     {% if item.contentType in ('galleryStartWithImage', 'galleryStartWithVideo') %}
+                     <a class="chip" href="{{ url_for('pages.gallery', id=item.id) }}"><i aria-hidden="true">photo_library</i>{{ _('Gallery') }}</a>
+                     {% endif %}
+                     <a class="chip" href="{{ url_for('pages.home') }}#article_{{ item.id }}"><i aria-hidden="true">article</i>{{ _('View in feed') }}</a>
+                  </nav>
+               </article>
+               {% else %}
+               <p>{{ _('No posts on this date.') }}</p>
+               {% endfor %}
+            {% else %}
+            <h5 id="day-posts-title">{{ _('Memories') }}</h5>
+            <p>{{ _('Choose a date to view its posts.') }}</p>
+            {% endif %}
+         </section>
+      </main>
+      {% include 'layouts/footer.html' %}
+      <script src="{{ static_versioned('js/main.js') }}"></script>
+   </body>
+</html>

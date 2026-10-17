@@ -18,6 +18,13 @@
        {% endif %}
        {% endfor %}
 
+       {% if has_list_permission('View', 'Home') %}
+       <a href="{{ url_for('pages.memory_calendar') }}">
+       <i>calendar_month</i>
+       <span>{{ _('Calendar') }}</span>
+       </a>
+       {% endif %}
+
        {% if has_permission('Manage Lists') %}
        <a onclick="callUi('#dialog-manage-list-types')">
        <i>tune</i>

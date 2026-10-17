@@ -1,5 +1,10 @@
 import json
-from flask import Blueprint, g, make_response, render_template, send_file, request, redirect, url_for, session
+import calendar
+from collections import Counter
+from datetime import date, datetime, timedelta
+from babel import Locale, UnknownLocaleError
+from babel.dates import format_date as babel_format_date, get_day_names
+from flask import Blueprint, abort, g, make_response, render_template, send_file, request, redirect, url_for, session
 from app.db_queries import (get_all_list_types, get_all_relationship_statuses,
     get_relationship_statuses_with_names, get_items_by_type,
     get_supported_languages, get_translation_for_entity, get_translation_progress,
@@ -187,6 +192,65 @@ def home():
     except Exception as e:
         log('error', f'Error while rendering the pages/home.html-Template: {e}')
         return "An error occurred while rendering the page. Please check the server logs for details.", 500
+
+
+@pages_bp.route('/calendar')
+@jwt_required
+def memory_calendar():
+    """Browse Home feed posts by their stored calendar date."""
+    if not has_list_permission('View', 'Home'):
+        abort(403)
+
+    selected = None
+    try:
+        selected_arg = request.args.get('date')
+        month_arg = request.args.get('month')
+        if selected_arg is not None:
+            selected = date.fromisoformat(selected_arg)
+            if selected.isoformat() != selected_arg:
+                abort(400)
+            month = selected.replace(day=1)
+        elif month_arg is not None:
+            month = date.fromisoformat(f'{month_arg}-01')
+            if month.strftime('%Y-%m') != month_arg:
+                abort(400)
+        else:
+            month = date.today().replace(day=1)
+    except ValueError:
+        abort(400)
+
+    try:
+        locale = Locale.parse(session.get('lang') or 'en-US', sep='-')
+    except (ValueError, UnknownLocaleError):
+        locale = Locale.parse('en-US', sep='-')
+
+    items = get_items_by_type(1, 'desc', edition=get_setting_by_name('sm_edition').value)
+    counts = Counter()
+    selected_items = []
+    for item, _author in items:
+        if not item.dateCreated:
+            continue
+        post_day = item.dateCreated.date() if isinstance(item.dateCreated, datetime) else item.dateCreated
+        if post_day.year == month.year and post_day.month == month.month:
+            counts[post_day.day] += 1
+        if post_day == selected:
+            selected_items.append(item)
+
+    previous = month - timedelta(days=1) if month > date.min else None
+    following = (date(month.year + 1, 1, 1) if month.month == 12
+                 else date(month.year, month.month + 1, 1)) if month.year < 9999 or month.month < 12 else None
+    week_start = locale.first_week_day
+    weekday_names = get_day_names('abbreviated', locale=locale)
+    return render_template(
+        'pages/calendar.html',
+        title=get_display_title(), darkmode=get_user_setting(g.user_id, 'darkmode'),
+        user_data=get_user_by_id(g.user_id), list_types=get_all_list_types(),
+        month=month, month_title=babel_format_date(month, 'LLLL yyyy', locale=locale),
+        weekday_labels=[weekday_names[(week_start + index) % 7] for index in range(7)],
+        weeks=calendar.Calendar(firstweekday=week_start).monthdayscalendar(month.year, month.month),
+        counts=counts, selected=selected, selected_items=selected_items,
+        previous=previous, following=following, today=date.today(),
+    )
 
 
 @pages_bp.route('/manage-translations')
