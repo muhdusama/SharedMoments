@@ -61,6 +61,7 @@ You can switch editions at any time without losing data.
 
 - **Push Notifications** — Delivered directly to your browser or phone (works automatically, no setup needed)
 - **E-Mail** — Receive notifications via email
+- **SMTP delivery settings** — Configure encrypted SMTP credentials in the admin settings page ([guide](docs/smtp-settings.md))
 - **Telegram** — Get notified via Telegram bot
 - Each user can choose their preferred notification channels in settings
 

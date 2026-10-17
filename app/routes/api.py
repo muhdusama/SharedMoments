@@ -27,6 +27,45 @@ from app.permissions import require_permission, require_list_permission
 
 api_bp = Blueprint('api', __name__)
 
+
+def _smtp_settings_csrf_ok():
+    import hmac
+    actual = request.headers.get('X-CSRF-Token', '')
+    expected = session.get('smtp_settings_csrf', '')
+    return (request.is_json and request.cookies.get('jwt_token')
+            and bool(actual and expected) and hmac.compare_digest(actual, expected))
+
+
+@api_bp.route('/api/v2/smtp/config', methods=['GET', 'PUT'])
+@jwt_required
+@require_permission('Update Setting')
+def smtp_configuration():
+    from app.mail_settings import public_smtp_config, save_smtp_config
+    if request.method == 'GET':
+        return jsonify({'status': 'success', 'data': public_smtp_config()})
+    if not _smtp_settings_csrf_ok():
+        return jsonify({'status': 'error', 'message': 'CSRF validation failed'}), 403
+    try:
+        save_smtp_config(request.get_json())
+    except ValueError as exc:
+        return jsonify({'status': 'error', 'message': str(exc)}), 400
+    return jsonify({'status': 'success', 'data': public_smtp_config()})
+
+
+@api_bp.route('/api/v2/smtp/test', methods=['POST'])
+@jwt_required
+@require_permission('Update Setting')
+def smtp_test_delivery():
+    if not _smtp_settings_csrf_ok():
+        return jsonify({'status': 'error', 'message': 'CSRF validation failed'}), 403
+    user = get_user_by_id(g.user_id)
+    if not user or not user.email:
+        return jsonify({'status': 'error', 'message': 'No account email available'}), 400
+    from app.notifications import send_email_notification
+    if not send_email_notification(user.email, 'SharedMoments SMTP test', 'Email delivery test'):
+        return jsonify({'status': 'error', 'message': 'Email delivery failed'}), 502
+    return jsonify({'status': 'success', 'message': 'Test email sent'})
+
 _export_jobs = {}
 _import_jobs = {}
 
@@ -1829,7 +1868,8 @@ def test_notification():
             user = get_user_by_id(g.user_id)
             if not user or not user.email:
                 return jsonify({'status': 'error', 'message': _('No email address in your profile')}), 400
-            if not os.environ.get('SMTP_HOST'):
+            from app.mail_settings import get_smtp_config
+            if not get_smtp_config():
                 return jsonify({'status': 'error', 'message': _('SMTP server not configured')}), 400
             result = send_email_notification(user.email, 'SharedMoments Test', _('This is a test notification!'))
         elif channel == 'telegram':

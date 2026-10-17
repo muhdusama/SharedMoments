@@ -102,26 +102,34 @@ def send_push_notification(user_id, title, body, url='/reminders'):
 
 def send_email_notification(to, subject, body):
     """Send an email notification via SMTP."""
-    smtp_host = os.environ.get('SMTP_HOST', '')
-    smtp_port = int(os.environ.get('SMTP_PORT', '587'))
-    smtp_user = os.environ.get('SMTP_USER', '')
-    smtp_pass = os.environ.get('SMTP_PASS', '')
-    smtp_from = os.environ.get('SMTP_FROM', smtp_user)
-
-    if not smtp_host or not smtp_user:
+    from app.mail_settings import get_smtp_config
+    try:
+        smtp = get_smtp_config()
+    except RuntimeError as exc:
+        log('error', str(exc))
+        return False
+    if not smtp or not smtp['host'] or not smtp['sender']:
         log('debug', 'SMTP not configured, skipping email notification')
         return False
 
     try:
         msg = MIMEMultipart()
-        msg['From'] = smtp_from
+        msg['From'] = smtp['sender']
         msg['To'] = to
         msg['Subject'] = subject
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
 
-        with smtplib.SMTP(smtp_host, smtp_port) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_pass)
+        import ssl
+        connection = (
+            smtplib.SMTP_SSL(smtp['host'], smtp['port'], timeout=15, context=ssl.create_default_context())
+            if smtp['security'] == 'ssl'
+            else smtplib.SMTP(smtp['host'], smtp['port'], timeout=15)
+        )
+        with connection as server:
+            if smtp['security'] == 'starttls':
+                server.starttls(context=ssl.create_default_context())
+            if smtp['username']:
+                server.login(smtp['username'], smtp['password'])
             server.send_message(msg)
 
         log('info', f'Email sent to {to}: {subject}')

@@ -215,6 +215,8 @@ def manage_translations():
 @require_permission('Read Setting')
 def settings():
     try:
+        import secrets
+        session.setdefault('smtp_settings_csrf', secrets.token_urlsafe(32))
         settings = get_all_settings()
         list_types = get_all_list_types()
         title = get_display_title()
@@ -246,7 +248,11 @@ def user_settings():
         settings_type = 'user-settings'
         supported_languages = get_supported_languages()
 
-        smtp_available = bool(os.environ.get('SMTP_HOST', ''))
+        from app.mail_settings import get_smtp_config
+        try:
+            smtp_available = bool(get_smtp_config())
+        except RuntimeError:
+            smtp_available = False
         telegram_available = bool(os.environ.get('TELEGRAM_BOT_TOKEN', ''))
         telegram_chat_id_setting = get_user_setting(g.user_id, 'notification_telegram_chat_id')
         telegram_chat_id = telegram_chat_id_setting.value if telegram_chat_id_setting else ''

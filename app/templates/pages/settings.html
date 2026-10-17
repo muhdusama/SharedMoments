@@ -175,6 +175,28 @@
               {% endfor %}
 
               {% if has_permission('Access Admin Panel') %}
+              {% if has_permission('Update Setting') %}
+              <legend>{{ _('Email delivery') }}</legend>
+              <p class="small">{{ _('Configure SMTP for account emails and optional notification emails. The password is not displayed after saving.') }}</p>
+              <div id="smtp-settings-panel" class="padding surface-container" style="border-radius:0.75rem;">
+                <label class="checkbox">
+                  <input type="checkbox" id="smtp-enabled">
+                  <span>{{ _('Enable SMTP delivery') }}</span>
+                </label>
+                <div class="field border"><input id="smtp-host" placeholder="smtp.example.org"><label>{{ _('SMTP host') }}</label></div>
+                <div class="field border"><input id="smtp-port" type="number" min="1" max="65535" value="587"><label>{{ _('SMTP port') }}</label></div>
+                <div class="field border"><select id="smtp-security"><option value="starttls">STARTTLS</option><option value="ssl">SSL/TLS</option></select><label>{{ _('Connection security') }}</label></div>
+                <div class="field border"><input id="smtp-username" autocomplete="username"><label>{{ _('SMTP username') }}</label></div>
+                <div class="field border"><input id="smtp-password" type="password" autocomplete="new-password" placeholder="Leave blank to keep saved password"><label>{{ _('SMTP password') }}</label></div>
+                <div class="field border"><input id="smtp-from" type="email" placeholder="noreply@example.org"><label>{{ _('Sender address') }}</label></div>
+                <nav class="wrap">
+                  <button type="button" onclick="saveSmtpSettings()">{{ _('Save SMTP settings') }}</button>
+                  <button class="border" type="button" onclick="testSmtpDelivery()">{{ _('Send test email to my account') }}</button>
+                </nav>
+                <p class="small" id="smtp-settings-status" role="status"></p>
+              </div>
+              {% endif %}
+
               <!-- Data Management Section -->
               <legend>{{ _('Data Management') }}</legend>
 
@@ -659,6 +681,9 @@
     const currentEdition = '{{ settings.sm_edition.value }}';
     const settingsType = '{{ settings_type }}';
     const appLocale = '{{ session.get("lang", "en-US") }}';
+    {% if settings_type == 'settings' and has_permission('Update Setting') %}
+    const smtpSettingsCsrf = {{ session.get('smtp_settings_csrf', '')|tojson }};
+    {% endif %}
     {% if settings_type == 'user-settings' %}
     {% set push_val = 'True' %}
     {% for s in user_settings if s.name == 'notification_push_enabled' %}{% set push_val = s.value %}{% endfor %}
@@ -668,6 +693,9 @@
     {% endif %}
    </script>
    <script src="{{ static_versioned('js/settings.js') }}"></script>
+   {% if settings_type == 'settings' and has_permission('Update Setting') %}
+   <script src="{{ static_versioned('js/smtp-settings.js') }}"></script>
+   {% endif %}
 
    </body>
 </html>
