@@ -745,6 +745,9 @@ def upload_chunk():
             final_name = datetime.now().strftime("%Y%m%d") + '-' + uuid.uuid4().hex[:12] + '-' + safe_name
             final_path = os.path.join(dest_folder, final_name)
             shutil.move(temp_path, final_path)
+            if ext in {'mov', 'mp4', 'webm', 'avi', 'mkv'}:
+                from app.media_playback import schedule_video_preview
+                schedule_video_preview(final_name)
 
             return jsonify({
                 'status': 'success',
@@ -811,6 +814,9 @@ def upload():
             dest_folder = _get_upload_folder(ext)
         os.makedirs(dest_folder, exist_ok=True)
         file.save(os.path.join(dest_folder, filename))
+        if static_media_flag != 'true' and ext in {'mov', 'mp4', 'webm', 'avi', 'mkv'}:
+            from app.media_playback import schedule_video_preview
+            schedule_video_preview(filename)
 
         return jsonify({
             'status': 'success',

@@ -1,9 +1,12 @@
 """On-demand browser-compatible MP4s and optional Live Photo still/motion pairs."""
 import os
+import json
+import hashlib
 import shutil
 import subprocess
 import tempfile
-from datetime import datetime
+import threading
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from flask import abort
@@ -15,6 +18,7 @@ from app.routes.api import _find_media_folder
 STILL_EXTS = {'.jpg', '.jpeg', '.png', '.heic', '.heif', '.webp'}
 MOTION_EXTS = {'.mov', '.mp4'}
 VIDEO_EXTS = {'.mov', '.mp4', '.avi', '.mkv', '.webm'}
+_conversion_slot = threading.BoundedSemaphore(1)
 
 
 def validate_pairs(raw_pairs, content_urls):
@@ -84,9 +88,46 @@ def _ffmpeg():
         return None
 
 
-def browser_video_path(filename):
+def _browser_compatible_mp4(source):
+    if source.suffix.lower() != '.mp4':
+        return False
+    probe = shutil.which('ffprobe')
+    if not probe:
+        return False
+    try:
+        result = subprocess.run([
+            probe, '-v', 'error', '-show_entries',
+            'stream=codec_type,codec_name,pix_fmt', '-of', 'json', str(source)
+        ], capture_output=True, text=True, timeout=10, check=False)
+        streams = json.loads(result.stdout).get('streams', []) if result.returncode == 0 else []
+        video = [entry for entry in streams if entry.get('codec_type') == 'video']
+        audio = [entry for entry in streams if entry.get('codec_type') == 'audio']
+        return (len(video) == 1 and video[0].get('codec_name') == 'h264'
+                and video[0].get('pix_fmt') == 'yuv420p'
+                and all(entry.get('codec_name') == 'aac' for entry in audio))
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return False
+
+
+def schedule_video_preview(filename):
+    """Prepare new uploads on the existing APScheduler, if it is running."""
+    if Path(filename).suffix.lower() not in VIDEO_EXTS:
+        return
+    from app.scheduler import _scheduler
+    if _scheduler and _scheduler.running:
+        _scheduler.add_job(
+            browser_video_path, 'date', args=[filename, True],
+            run_date=datetime.now() + timedelta(seconds=1),
+            id='video:' + hashlib.sha256(filename.encode()).hexdigest(),
+            replace_existing=True,
+        )
+
+
+def browser_video_path(filename, background=False):
     """Keep original media untouched and atomically cache a H.264/AAC MP4 derivative."""
     source = media_source(filename)
+    if _browser_compatible_mp4(source):
+        return source
     base = Path(__file__).resolve().parent / 'uploads' / 'web-video'
     base.mkdir(parents=True, exist_ok=True)
     target = base / f'web-{filename}.mp4'
@@ -95,24 +136,29 @@ def browser_video_path(filename):
     binary = _ffmpeg()
     if not binary:
         abort(503, description='Video conversion requires ffmpeg')
-    with tempfile.NamedTemporaryFile(dir=base, suffix='.mp4', delete=False) as tmp:
-        name = Path(tmp.name)
+    if not _conversion_slot.acquire(blocking=background):
+        abort(503, description='Video conversion busy; retry shortly')
     try:
-        command = [
-            binary, '-nostdin', '-hide_banner', '-loglevel', 'error', '-y',
-            '-i', str(source),
-            '-map', '0:v:0', '-map', '0:a:0?', '-map_metadata', '-1',
-            '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '25',
-            '-preset', 'veryfast', '-vf', 'scale=trunc(min(iw\\,1920)/2)*2:-2',
-            '-c:a', 'aac', '-b:a', '128k',
-            '-movflags', '+faststart', str(name),
-        ]
-        completed = subprocess.run(command, capture_output=True, timeout=300, check=False)
-        if completed.returncode != 0 or not name.is_file() or name.stat().st_size == 0:
-            abort(422, description='Unable to prepare a browser-compatible video')
-        os.replace(name, target)
-        return target
-    except subprocess.TimeoutExpired:
-        abort(503, description='Video conversion timed out')
+        with tempfile.NamedTemporaryFile(dir=base, suffix='.mp4', delete=False) as tmp:
+            name = Path(tmp.name)
+        try:
+            command = [
+                binary, '-nostdin', '-hide_banner', '-loglevel', 'error', '-y',
+                '-i', str(source),
+                '-map', '0:v:0', '-map', '0:a:0?', '-map_metadata', '-1',
+                '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '25',
+                '-preset', 'veryfast', '-vf', 'scale=trunc(min(iw\\,1920)/2)*2:-2',
+                '-c:a', 'aac', '-b:a', '128k',
+                '-movflags', '+faststart', str(name),
+            ]
+            completed = subprocess.run(command, capture_output=True, timeout=300, check=False)
+            if completed.returncode != 0 or not name.is_file() or name.stat().st_size == 0:
+                abort(422, description='Unable to prepare a browser-compatible video')
+            os.replace(name, target)
+            return target
+        except subprocess.TimeoutExpired:
+            abort(503, description='Video conversion timed out')
+        finally:
+            name.unlink(missing_ok=True)
     finally:
-        name.unlink(missing_ok=True)
+        _conversion_slot.release()

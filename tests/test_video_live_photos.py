@@ -113,3 +113,49 @@ def test_shared_video_requires_authorised_share(admin_client, client, mocked_vid
         assert client.get('/s/invalid/media/play/synthetic.mov').status_code == 404
     finally:
         delete_item(item_id)
+
+
+def test_browser_ready_mp4_is_not_reencoded(adult_client, tmp_path, monkeypatch):
+    from app import media_playback
+    source = tmp_path / 'synthetic.mp4'
+    source.write_bytes(b'synthetic video bytes')
+    monkeypatch.setattr(media_playback, '_find_media_folder', lambda _: str(tmp_path))
+    monkeypatch.setattr(media_playback.shutil, 'which', lambda _: '/synthetic/ffprobe')
+    calls = []
+
+    def fake_probe(args, **kwargs):
+        calls.append(args)
+        return type('Result', (), {'returncode': 0, 'stdout': json.dumps({
+            'streams': [{'codec_type': 'video', 'codec_name': 'h264', 'pix_fmt': 'yuv420p'},
+                        {'codec_type': 'audio', 'codec_name': 'aac'}]})})()
+
+    monkeypatch.setattr(media_playback.subprocess, 'run', fake_probe)
+    response = adult_client.get('/api/v2/media/play/synthetic.mp4')
+    assert response.status_code == 200 and response.data == source.read_bytes()
+    assert len(calls) == 1
+
+
+def test_conversion_load_is_bounded(adult_client, mocked_video):
+    from app.media_playback import _conversion_slot
+    assert _conversion_slot.acquire(blocking=False)
+    try:
+        response = adult_client.get('/api/v2/media/play/synthetic.mov')
+        assert response.status_code == 503
+    finally:
+        _conversion_slot.release()
+
+
+def test_upload_schedules_preview_on_existing_scheduler(monkeypatch):
+    from app.media_playback import schedule_video_preview
+    import app.scheduler as scheduler
+    calls = []
+    class FakeScheduler:
+        running = True
+        def add_job(self, *args, **kwargs):
+            calls.append((args, kwargs))
+    monkeypatch.setattr(scheduler, '_scheduler', FakeScheduler())
+    schedule_video_preview('synthetic.mov')
+    schedule_video_preview('synthetic.jpg')
+    assert len(calls) == 1
+    assert calls[0][1]['args'] == ['synthetic.mov', True]
+    assert calls[0][1]['replace_existing'] is True
