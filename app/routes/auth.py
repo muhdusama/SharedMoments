@@ -49,6 +49,8 @@ def get_secret_key():
 def jwt_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        if getattr(g, 'api_key_auth', False) and request.path.startswith('/api/v2/'):
+            return f(*args, **kwargs)
         token = request.cookies.get('jwt_token')
 
         if not token:
@@ -110,6 +112,9 @@ def login_jwt(user, remember_me=False):
 
 @auth_bp.before_app_request
 def before_request():
+    # Authentication state must be scoped to the current request, even when
+    # an application context is reused (for example by a test harness).
+    g.api_key_auth = False
     # --- Demo Mode ---
     if Config.DEMO_MODE and not request.path.startswith('/static/'):
         from app.demo import create_demo_session, bind_demo_session, DEMO_DB_DIR
@@ -133,6 +138,38 @@ def before_request():
 
         # Engine für diesen Request binden
         bind_demo_session(demo_id)
+
+    # API keys work only on an explicit, narrow allowlist of existing API routes.
+    # Never allow a bearer key to access settings, account administration or HTML pages.
+    auth_header = request.headers.get('Authorization')
+    if auth_header:
+        allowed = {
+            'api.item', 'api.item_by_id',
+            'api.media', 'api.media_thumb', 'api.all_media_urls',
+            'api.upload', 'api.upload_chunk',
+            # Optional iOS Shortcuts capture: key can create a private draft
+            # but cannot inspect, edit, discard, or publish that draft.
+            'quick_capture.create_capture_draft',
+        }
+        if request.endpoint not in allowed:
+            return jsonify({'status': 'error', 'message': 'API key cannot access this endpoint'}), 403
+        if not auth_header.startswith('Bearer ') or auth_header.count(' ') != 1:
+            return jsonify({'status': 'error', 'message': 'Invalid API key'}), 401
+        from app.api_keys import lookup_key
+        user_id = lookup_key(auth_header.removeprefix('Bearer '), request.method)
+        if not user_id:
+            return jsonify({'status': 'error', 'message': 'Invalid or insufficient API key'}), 401
+        user = get_user_by_id(user_id)
+        if not user:
+            return jsonify({'status': 'error', 'message': 'Invalid API key'}), 401
+        setup_setting = get_setting_by_name('setup_complete')
+        if not setup_setting or setup_setting.value != 'True':
+            return jsonify({'status': 'error', 'message': 'Setup is not complete'}), 403
+        g.user_id = user_id
+        g.user_name = f'{user.firstName} {user.lastName}'.strip() or f'User {user_id}'
+        g.user_permissions = load_user_permissions(user_id)
+        g.api_key_auth = True
+        return
 
     # --- Rest des bestehenden before_request ---
     if request.path.startswith('/s/') or request.path.startswith('/api/v2/data/import/status/') or request.path.startswith('/api/v2/data/export/status/'):

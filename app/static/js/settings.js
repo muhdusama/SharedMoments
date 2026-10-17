@@ -1,6 +1,68 @@
 // --- State ---
 // These are set from inline <script> in settings.html:
-// relationshipStatuses, supportedLanguages, editions, currentEdition, settingsType, appLocale
+// relationshipStatuses, supportedLanguages, editions, currentEdition, settingsType, appLocale, apiKeyCsrf
+
+// --- API key management ---
+async function listApiKeys() {
+    const container = document.getElementById('api-key-list');
+    if (!container) return;
+    const response = await fetch('/api/v2/api-keys', { cache: 'no-store' });
+    if (!response.ok) return;
+    const data = await response.json();
+    container.replaceChildren();
+    (data.data.keys || []).forEach(key => {
+        const row = document.createElement('div');
+        row.className = 'row padding primary-container';
+        const description = document.createElement('div');
+        description.className = 'max';
+        const text = document.createElement('p');
+        text.textContent = key.name + ' (' + key.prefix + '...)';
+        const detail = document.createElement('small');
+        detail.textContent = key.scope + ' · ' + (key.revoked ? 'Revoked' : 'Expires ' + key.expires);
+        description.append(text, detail);
+        row.append(description);
+        if (!key.revoked) {
+            const revoke = document.createElement('button');
+            revoke.className = 'small border';
+            revoke.textContent = _('Revoke');
+            revoke.onclick = async () => {
+                if (!confirm(_('Revoke this API key?'))) return;
+                const result = await fetch('/api/v2/api-keys/' + key.id + '/revoke', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': apiKeyCsrf },
+                    body: '{}'
+                });
+                if (result.ok) await listApiKeys();
+            };
+            row.append(revoke);
+        }
+        container.append(row);
+    });
+}
+
+async function createApiKey() {
+    const status = document.getElementById('api-key-status');
+    const response = await fetch('/api/v2/api-keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': apiKeyCsrf },
+        body: JSON.stringify({
+            name: document.getElementById('new-api-key-name').value,
+            scope: document.getElementById('new-api-key-scope').value,
+            expiry_days: parseInt(document.getElementById('new-api-key-expiry').value, 10),
+        })
+    });
+    const result = await response.json();
+    if (!response.ok) {
+        status.textContent = result.message || _('Failed to create API key');
+        return;
+    }
+    document.getElementById('api-key-once').value = result.data.key;
+    document.getElementById('api-key-created').hidden = false;
+    status.textContent = _('API key created');
+    await listApiKeys();
+}
+
+document.addEventListener('DOMContentLoaded', listApiKeys);
 
 function isIsoDate(str) {
     return /^\d{4}-\d{2}-\d{2}$/.test(str);

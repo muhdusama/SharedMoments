@@ -381,6 +381,37 @@
                 </div>
               </div>
 
+              <!-- User-owned API keys (browser session only) -->
+              <legend>{{ _('API keys') }}</legend>
+              <p class="small">{{ _('Create a revocable key for an integration. Each key is displayed only once.') }}</p>
+              <div class="field border">
+                <input id="new-api-key-name" maxlength="80" placeholder="e.g. Home automation" autocomplete="off">
+                <label>{{ _('Key name') }}</label>
+              </div>
+              <div class="field border">
+                <select id="new-api-key-scope">
+                  <option value="read">{{ _('Read only') }}</option>
+                  <option value="read_write">{{ _('Read and write') }}</option>
+                </select>
+                <label>{{ _('Permissions') }}</label>
+              </div>
+              <div class="field border">
+                <select id="new-api-key-expiry">
+                  <option value="30">30 {{ _('days') }}</option>
+                  <option value="90" selected>90 {{ _('days') }}</option>
+                  <option value="365">365 {{ _('days') }}</option>
+                </select>
+                <label>{{ _('Expires after') }}</label>
+              </div>
+              <button class="small" type="button" onclick="createApiKey()">{{ _('Create API key') }}</button>
+              <div id="api-key-created" hidden>
+                <p class="small">{{ _('Copy this key now. It will not be shown again.') }}</p>
+                <input type="text" id="api-key-once" readonly aria-label="{{ _('New API key') }}">
+                <button class="small border" type="button" onclick="navigator.clipboard.writeText(document.getElementById('api-key-once').value)">{{ _('Copy') }}</button>
+              </div>
+              <p id="api-key-status" role="status"></p>
+              <div id="api-key-list"></div>
+
               <!-- Notifications Section -->
               <legend>{{ _('Notifications') }}</legend>
 
@@ -660,6 +691,7 @@
     const settingsType = '{{ settings_type }}';
     const appLocale = '{{ session.get("lang", "en-US") }}';
     {% if settings_type == 'user-settings' %}
+    const apiKeyCsrf = {{ session.get('api_key_csrf', '')|tojson }};
     {% set push_val = 'True' %}
     {% for s in user_settings if s.name == 'notification_push_enabled' %}{% set push_val = s.value %}{% endfor %}
     window.pushEnabled = {{ (push_val == 'True')|tojson }};
