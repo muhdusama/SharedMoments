@@ -2203,6 +2203,11 @@ def _run_import(import_id, zip_path, user_id, app_ref, is_setup=False):
             if feature_data is not None:
                 validate_feature_rows(feature_data, data.get('users', []),
                                       data['items'], Path(extract_dir))
+                if any(item.get('creatorSourceId') is not None and
+                       item['creatorSourceId'] not in {
+                           user['sourceId'] for user in data.get('users', [])
+                       } for item in data['items']):
+                    raise ValueError('Backup references an unknown memory author')
             else:
                 check = SessionLocal()
                 try:
@@ -2440,7 +2445,12 @@ def _run_import(import_id, zip_path, user_id, app_ref, is_setup=False):
                     date_created = datetime.fromisoformat(date_created_str) if date_created_str else datetime.utcnow()
 
                     creator_email = item_data.get('creatorEmail', '')
-                    item_owner = user_email_to_id.get(creator_email, user_id) if creator_email else user_id
+                    if feature_data is not None and item_data.get('creatorSourceId') is not None:
+                        item_owner = user_id_map.get(item_data['creatorSourceId'])
+                        if item_owner is None:
+                            raise ValueError('Missing original memory owner during restore')
+                    else:
+                        item_owner = user_email_to_id.get(creator_email, user_id) if creator_email else user_id
 
                     created_item_id = create_item(
                         title=item_data.get('title', ''),
@@ -2659,6 +2669,7 @@ def _run_export(export_id, user_id, app_ref):
                 creator_obj = user_id_map.get(item.createdByUser)
                 export_data_json['items'].append({
                     'sourceId': item.id,
+                    'creatorSourceId': item.createdByUser,
                     'title': item.title,
                     'content': item.content,
                     'contentType': item.contentType,
