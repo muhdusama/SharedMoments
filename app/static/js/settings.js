@@ -18,7 +18,11 @@ async function listApiKeys() {
         const text = document.createElement('p');
         text.textContent = key.name + ' (' + key.prefix + '...)';
         const detail = document.createElement('small');
-        detail.textContent = key.scope + ' · ' + (key.revoked ? 'Revoked' : 'Expires ' + key.expires);
+        const expiry = key.revoked ? _('Revoked') :
+            key.perpetual ? _('Never expires') : _('Expires') + ' ' + key.expires;
+        const usage = key.last_used ? _('Last used') + ' ' + key.last_used.replace('T', ' ') + ' UTC'
+            : _('Not used yet');
+        detail.textContent = key.scope + ' · ' + expiry + ' · ' + usage;
         description.append(text, detail);
         row.append(description);
         if (!key.revoked) {
@@ -42,13 +46,15 @@ async function listApiKeys() {
 
 async function createApiKey() {
     const status = document.getElementById('api-key-status');
+    const expiryDays = Number(document.getElementById('new-api-key-expiry').value);
+    if (expiryDays === 0 && !confirm(_('This API key will never expire. Anyone with the key can use its permissions until you revoke it. Continue?'))) return;
     const response = await fetch('/api/v2/api-keys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': apiKeyCsrf },
         body: JSON.stringify({
             name: document.getElementById('new-api-key-name').value,
             scope: document.getElementById('new-api-key-scope').value,
-            expiry_days: parseInt(document.getElementById('new-api-key-expiry').value, 10),
+            expiry_days: expiryDays,
         })
     });
     const result = await response.json();

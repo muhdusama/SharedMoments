@@ -51,7 +51,13 @@ def api_keys():
         return jsonify({'status': 'error', 'message': 'CSRF validation failed'}), 403
     data = request.get_json()
     try:
-        expiry_days = int(data.get('expiry_days', 90))
+        raw_expiry = data.get('expiry_days', 90)
+        if type(raw_expiry) is int:
+            expiry_days = raw_expiry
+        elif isinstance(raw_expiry, str) and raw_expiry.isascii() and raw_expiry.isdecimal():
+            expiry_days = int(raw_expiry)
+        else:
+            raise ValueError('Invalid expiry duration')
         token, key_id = create_key(
             g.user_id, str(data.get('name', '')),
             data.get('scope', 'read'), expiry_days,

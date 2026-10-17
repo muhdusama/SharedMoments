@@ -8,6 +8,10 @@ from datetime import datetime, timedelta, timezone
 from app.models import ApiKey, SessionLocal
 
 
+# Sentinel keeps the existing NOT NULL column compatible with older databases.
+PERPETUAL_EXPIRY = datetime(9999, 12, 31)
+
+
 def _now():
     # Store UTC values without timezone metadata for SQLite compatibility.
     return datetime.now(timezone.utc).replace(tzinfo=None)
@@ -17,7 +21,7 @@ def create_key(user_id, name, scope='read', days=90):
     name = name.strip()
     if not 1 <= len(name) <= 80 or scope not in {'read', 'read_write'}:
         raise ValueError('Invalid key name or scope')
-    if not isinstance(days, int) or not 1 <= days <= 365:
+    if type(days) is not int or not 0 <= days <= 365:
         raise ValueError('Key expiry must be between 1 and 365 days')
 
     db = SessionLocal()
@@ -34,7 +38,7 @@ def create_key(user_id, name, scope='read', days=90):
             userID=user_id, name=name, scope=scope,
             keyHash=hashlib.sha256(raw.encode('utf-8')).hexdigest(),
             keyPrefix=raw[:12], createdAt=now,
-            expiresAt=now + timedelta(days=days),
+            expiresAt=PERPETUAL_EXPIRY if days == 0 else now + timedelta(days=days),
         )
         db.add(record)
         db.commit()
@@ -70,7 +74,8 @@ def list_keys(user_id):
         return [{
             'id': k.id, 'name': k.name, 'prefix': k.keyPrefix,
             'scope': k.scope, 'created': k.createdAt.isoformat(),
-            'expires': k.expiresAt.isoformat(),
+            'expires': None if k.expiresAt == PERPETUAL_EXPIRY else k.expiresAt.isoformat(),
+            'perpetual': k.expiresAt == PERPETUAL_EXPIRY,
             'last_used': k.lastUsedAt.isoformat() if k.lastUsedAt else None,
             'revoked': bool(k.revokedAt),
         } for k in db.query(ApiKey).filter(ApiKey.userID == user_id)
