@@ -104,7 +104,7 @@ def location_update(item_id):
     db = SessionLocal()
     try:
         record = db.query(MemoryLocation).filter_by(itemID=item_id).first()
-        if record and record.visibility == 'private' and record.createdByUser != g.user_id:
+        if record and record.createdByUser != g.user_id:
             abort(404)
         if request.method == 'DELETE':
             if not record:
