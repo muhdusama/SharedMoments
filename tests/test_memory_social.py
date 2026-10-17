@@ -92,6 +92,12 @@ def test_notifications_require_opt_in_and_do_not_send_memory_content(
     assert child_client.put(f'/api/v2/memories/{visible}/reactions/heart',
                             json={'active':True},headers=header).status_code==200
     assert len(calls)==2
+    assert child_client.put(f'/api/v2/memories/{visible}/reactions/heart',
+                            json={'active':False},headers=header).status_code==200
+    assert child_client.put(f'/api/v2/memories/{visible}/reactions/heart',
+                            json={'active':True},headers=header).status_code==200
+    # Removing and re-adding a reaction should not notify again on the same day.
+    assert len(calls)==2
     # Idempotent re-application is not a second notification.
     assert child_client.put(f'/api/v2/memories/{visible}/reactions/heart',
                             json={'active':True},headers=header).status_code==200

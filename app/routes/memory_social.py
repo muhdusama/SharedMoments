@@ -4,9 +4,10 @@ from datetime import datetime, timezone
 
 from flask import Blueprint, abort, g, jsonify, request, session
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from app.db_queries import get_items_by_type, get_setting_by_name, get_user_setting
 from app.logger import log
-from app.models import MemoryComment, MemoryReaction, SessionLocal, User
+from app.models import MemoryComment, MemoryReaction, NotificationLog, SessionLocal, User
 from app.notifications import send_notification
 from app.permissions import has_list_permission
 from app.routes.auth import jwt_required
@@ -33,12 +34,23 @@ def _csrf():
                 and hmac.compare_digest(expected, received))
 
 
-def _notify_owner(item, actor_id, summary):
+def _notify_owner(item, actor_id, summary, notification_key=None):
     if item.createdByUser == actor_id:
         return
     preference = get_user_setting(item.createdByUser, 'notification_engagement_enabled')
     if not preference or preference.value != 'True':
         return
+    if notification_key:
+        # Existing notification log doubles as a unique, durable deduplication key.
+        db = SessionLocal()
+        try:
+            db.add(NotificationLog(notification_key=notification_key))
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            return
+        finally:
+            db.close()
     try:
         # Do not send comment text or memory contents to email/third-party channels.
         send_notification(item.createdByUser, 'SharedMoments activity', summary)
@@ -153,9 +165,21 @@ def set_reaction(item_id, kind):
             added = True
         elif not active and existing:
             db.delete(existing)
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            # Another request already inserted this exact reaction.
+            db.rollback()
+            if not active:
+                raise
+            if not db.query(MemoryReaction).filter_by(
+                    itemID=item_id, userID=g.user_id, kind=kind).first():
+                raise
+            added = False
     finally:
         db.close()
     if added:
-        _notify_owner(item,g.user_id,'A family member reacted to a shared memory.')
+        daily_key = f'reaction:{item_id}:{g.user_id}:{kind}:{datetime.now(timezone.utc).date()}'
+        _notify_owner(item,g.user_id,'A family member reacted to a shared memory.',
+                      notification_key=daily_key)
     return jsonify({'status':'success','data':{'active':active}})
