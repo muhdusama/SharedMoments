@@ -415,6 +415,20 @@
                 </a>
               </div>
 
+              {% elif user_setting.name == 'notification_engagement_enabled' %}
+              <div class="row padding primary-container">
+                <i>forum</i>
+                <div class="max">
+                  <h6 class="small">{{ _('Notify me about memory comments and reactions') }}</h6>
+                  <div class="small">{{ _('Only for memories I have created') }}</div>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="toggle-engagement" {{ 'checked' if user_setting.value == 'True' }}
+                    onchange="saveNotificationSetting('notification_engagement_enabled', this.checked ? 'True' : 'False')">
+                  <span></span>
+                </label>
+              </div>
+
               {% elif user_setting.name == 'notification_email_enabled' and smtp_available %}
               <!-- E-Mail -->
               <a class="row padding primary-container wave" onclick="toggleEmail(!document.getElementById('toggle-email').checked)">

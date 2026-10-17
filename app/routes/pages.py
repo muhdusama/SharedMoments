@@ -164,6 +164,8 @@ def setup():
 @jwt_required
 def home():
     try:
+        import secrets
+        session.setdefault('memory_social_csrf', secrets.token_urlsafe(32))
         list_type = 1
         sm_edition = get_setting_by_name('sm_edition').value
         items = get_items_by_type(list_type, 'desc', edition=sm_edition)

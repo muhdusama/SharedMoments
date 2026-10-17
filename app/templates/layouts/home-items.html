@@ -71,5 +71,22 @@
          <img class="circle" src="/api/v2/media/static/{{ user.profilePicture or 'profile-placeholder.jpg' }}">
       </nav>
    </div>
+   {% if has_list_permission('View', 'Home') %}
+   <div class="padding">
+     <button type="button" class="chip small border" onclick="toggleMemoryDiscussion({{ item.id }})">
+       <i>forum</i>{{ _('Comments and reactions') }}
+     </button>
+     <section id="memory-discussion-{{ item.id }}" hidden aria-label="{{ _('Comments and reactions') }}">
+       <div id="memory-reactions-{{ item.id }}" class="row wrap"></div>
+       <div id="memory-comments-{{ item.id }}"></div>
+       {% if has_list_permission('Create', 'Home') %}
+       <textarea id="memory-comment-input-{{ item.id }}" maxlength="1200" rows="2"
+                 placeholder="{{ _('Write a comment') }}" aria-label="{{ _('Write a comment') }}"></textarea>
+       <button type="button" class="small" onclick="postMemoryComment({{ item.id }})">{{ _('Comment') }}</button>
+       {% endif %}
+       <p role="status" id="memory-comment-status-{{ item.id }}"></p>
+     </section>
+   </div>
+   {% endif %}
 </article>
 {% endfor %}

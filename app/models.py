@@ -157,6 +157,25 @@ class ItemShare(Base):
     item = relationship('Item', backref='shares')
     creator = relationship('User', foreign_keys=[createdByUser])
 
+
+class MemoryComment(Base):
+    __tablename__ = 'memory_comments'
+    id = Column(Integer, primary_key=True)
+    itemID = Column(Integer, ForeignKey('items.id'), nullable=False, index=True)
+    authorID = Column(Integer, ForeignKey('users.id'), nullable=False)
+    content = Column(Text, nullable=False)
+    createdAt = Column(DateTime, nullable=False, default=func.now())
+    editedAt = Column(DateTime, nullable=True)
+
+
+class MemoryReaction(Base):
+    __tablename__ = 'memory_reactions'
+    id = Column(Integer, primary_key=True)
+    itemID = Column(Integer, ForeignKey('items.id'), nullable=False, index=True)
+    userID = Column(Integer, ForeignKey('users.id'), nullable=False)
+    kind = Column(String(20), nullable=False)
+    __table_args__ = (UniqueConstraint('itemID','userID','kind',name='uq_memory_reaction'),)
+
 class ListType(Base):
     __tablename__ = 'listTypes'
     id = Column(Integer, primary_key=True, autoincrement=True)
