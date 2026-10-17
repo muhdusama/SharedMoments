@@ -1,6 +1,6 @@
 const memoryReactionKinds = [
-    ['heart', 'favorite'], ['like', 'thumb_up'],
-    ['laugh', 'sentiment_very_satisfied'], ['celebrate', 'celebration']
+    ['heart', 'favorite', 'Love'], ['like', 'thumb_up', 'Like'],
+    ['laugh', 'sentiment_very_satisfied', 'Funny'], ['celebrate', 'celebration', 'Celebrate']
 ];
 
 async function memoryRequest(url, method, data) {
@@ -20,10 +20,24 @@ function memoryStatus(itemId, message) {
     if (node) node.textContent = message;
 }
 
+function memoryLabel(text) {
+    return typeof _ === 'function' ? _(text) : text;
+}
+
+function memoryDate(value) {
+    if (!value) return '';
+    // Stored timestamps are UTC without an offset.
+    const date = new Date(/[zZ]|[+-]\d\d:\d\d$/.test(value) ? value : value + 'Z');
+    if (isNaN(date)) return '';
+    return date.toLocaleString(undefined, {dateStyle: 'medium', timeStyle: 'short'});
+}
+
 async function toggleMemoryDiscussion(itemId) {
     const panel = document.getElementById('memory-discussion-' + itemId);
     if (!panel) return;
     panel.hidden = !panel.hidden;
+    document.getElementById('memory-discussion-toggle-' + itemId)
+        ?.setAttribute('aria-expanded', String(!panel.hidden));
     if (!panel.hidden) await renderMemoryDiscussion(itemId);
 }
 
@@ -39,17 +53,24 @@ async function renderMemoryDiscussion(itemId) {
     const comments = document.getElementById('memory-comments-' + itemId);
     reactions.replaceChildren();
     comments.replaceChildren();
-    for (const [kind, icon] of memoryReactionKinds) {
+    for (const [kind, icon, label] of memoryReactionKinds) {
         const active = (data.mine || []).includes(kind);
+        const total = (data.reactions || {})[kind] || 0;
         const button = document.createElement('button');
         button.type = 'button';
-        button.className = 'chip small ' + (active ? 'primary-container' : 'border');
+        button.className = 'chip small round ' + (active ? 'primary' : 'border');
+        button.title = memoryLabel(label);
+        button.setAttribute('aria-label', memoryLabel(label) + ': ' + total);
+        button.setAttribute('aria-pressed', String(active));
         const symbol = document.createElement('i');
         symbol.textContent = icon;
-        const count = document.createElement('span');
-        count.textContent = kind + ' ' + ((data.reactions || {})[kind] || 0);
-        button.append(symbol, count);
-        button.setAttribute('aria-pressed', String(active));
+        if (active) symbol.classList.add('fill');
+        button.append(symbol);
+        if (total) {
+            const count = document.createElement('span');
+            count.textContent = total;
+            button.append(count);
+        }
         button.onclick = async () => {
             try {
                 await memoryRequest('/api/v2/memories/' + itemId + '/reactions/' + kind,
@@ -59,28 +80,42 @@ async function renderMemoryDiscussion(itemId) {
         };
         reactions.append(button);
     }
-    for (const comment of (data.comments || [])) {
+    const list = data.comments || [];
+    const toggleLabel = document.querySelector('#memory-discussion-toggle-' + itemId + ' span');
+    if (toggleLabel) {
+        toggleLabel.textContent = memoryLabel('Comments') + (list.length ? ' (' + list.length + ')' : '');
+    }
+    for (const comment of list) {
         const article = document.createElement('div');
-        article.className = 'padding surface-container';
-        const by = document.createElement('small');
-        by.textContent = comment.author + ' · ' + (comment.created || '');
-        const text = document.createElement('p');
-        text.textContent = comment.content;
-        text.style.whiteSpace = 'pre-wrap';
-        article.append(by, text);
+        article.className = 'memory-comment';
+        const meta = document.createElement('div');
+        meta.className = 'memory-comment-meta';
+        const author = document.createElement('strong');
+        author.textContent = comment.author || memoryLabel('Family member');
+        const when = document.createElement('small');
+        when.textContent = memoryDate(comment.created);
+        meta.append(author, when);
         if (comment.can_delete) {
             const remove = document.createElement('button');
-            remove.className = 'small border';
-            remove.textContent = 'Delete';
+            remove.type = 'button';
+            remove.className = 'circle transparent small';
+            remove.title = memoryLabel('Delete');
+            remove.setAttribute('aria-label', memoryLabel('Delete'));
+            const removeIcon = document.createElement('i');
+            removeIcon.textContent = 'delete';
+            remove.append(removeIcon);
             remove.onclick = async () => {
-                if (!confirm('Delete this comment?')) return;
+                if (!confirm(memoryLabel('Delete this comment?'))) return;
                 try {
                     await memoryRequest('/api/v2/memories/comments/' + comment.id, 'DELETE');
                     await renderMemoryDiscussion(itemId);
                 } catch (error) { memoryStatus(itemId, error.message); }
             };
-            article.append(remove);
+            meta.append(remove);
         }
+        const text = document.createElement('p');
+        text.textContent = comment.content;
+        article.append(meta, text);
         comments.append(article);
     }
 }
@@ -88,13 +123,22 @@ async function renderMemoryDiscussion(itemId) {
 async function postMemoryComment(itemId) {
     const field = document.getElementById('memory-comment-input-' + itemId);
     const content = (field?.value || '').trim();
-    if (!content) return memoryStatus(itemId, 'Write a comment first');
+    if (!content) return memoryStatus(itemId, memoryLabel('Write a comment first'));
     try {
         await memoryRequest('/api/v2/memories/' + itemId + '/comments', 'POST', {content});
         field.value = '';
+        memoryStatus(itemId, '');
         await renderMemoryDiscussion(itemId);
-        memoryStatus(itemId, 'Comment added');
     } catch (error) {
         memoryStatus(itemId, error.message);
     }
 }
+
+// Ctrl/Cmd+Enter posts a comment; plain Enter keeps adding lines.
+document.addEventListener('keydown', event => {
+    const field = event.target;
+    if (event.key !== 'Enter' || !(event.metaKey || event.ctrlKey)) return;
+    if (!field.id || !field.id.startsWith('memory-comment-input-')) return;
+    event.preventDefault();
+    postMemoryComment(field.id.replace('memory-comment-input-', ''));
+});

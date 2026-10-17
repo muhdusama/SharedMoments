@@ -13,6 +13,24 @@
    </div>
 </article>
 {% endif %}
+<style>
+   .memory-footer { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin-top: .5rem; }
+   .memory-discussion { margin-top: .75rem; padding-top: .75rem; border-top: 1px solid var(--outline-variant); }
+   .memory-reactions { display: flex; flex-wrap: wrap; gap: .5rem; }
+   .memory-reactions .chip { margin: 0; }
+   .memory-comments { display: flex; flex-direction: column; gap: .5rem; margin-top: .75rem; }
+   .memory-comment { padding: .5rem .75rem; border-radius: .75rem; background: var(--surface-container-highest); }
+   .memory-comment-meta { display: flex; align-items: center; gap: .5rem; min-height: 2rem; }
+   .memory-comment-meta strong { font-size: .875rem; }
+   .memory-comment-meta small { opacity: .7; }
+   .memory-comment p { margin: .125rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+   .memory-compose { display: flex; align-items: flex-start; gap: .5rem; margin-top: .75rem; }
+   .memory-comment-meta button { margin: 0 0 0 auto; }
+   .memory-compose .field { flex: 1; margin: 0; height: auto; }
+   .memory-compose textarea { height: 3rem; min-height: 3rem; padding-block: .75rem; resize: vertical; }
+   .memory-compose > button { margin: .25rem 0 0; }
+   .memory-status:empty { display: none; }
+</style>
 {% for item, user in items %}
 <article class="no-padding primary-container home-item" id="article_{{ item.id }}">
    {% if item.contentType == 'galleryStartWithImage' or item.contentType == 'galleryStartWithVideo' or item.contentType == 'video' or item.contentType == 'video-mov' %}
@@ -63,30 +81,37 @@
    <div class="padding">
       <h5>{{ item.title|nl2br }}</h5>
       <p>{{ item.content|nl2br }}</p>
-      <nav class="right-align">
+      <nav class="memory-footer">
+         {% if has_list_permission('View', 'Home') %}
+         <button type="button" class="chip border small round" id="memory-discussion-toggle-{{ item.id }}"
+                 aria-expanded="false" aria-controls="memory-discussion-{{ item.id }}"
+                 onclick="toggleMemoryDiscussion({{ item.id }})">
+            <i>forum</i><span>{{ _('Comments') }}</span>
+         </button>
+         {% endif %}
          <div class="max"></div>
          <a class="chip no-border secondary small round">
-         <span>{{ item.dateCreated|format_date_dmy }}<span>
+         <span>{{ item.dateCreated|format_date_dmy }}</span>
          </a>
          <img class="circle" src="/api/v2/media/static/{{ user.profilePicture or 'profile-placeholder.jpg' }}">
       </nav>
+      {% if has_list_permission('View', 'Home') %}
+      <section id="memory-discussion-{{ item.id }}" class="memory-discussion" hidden aria-label="{{ _('Comments and reactions') }}">
+         <div id="memory-reactions-{{ item.id }}" class="memory-reactions"></div>
+         <div id="memory-comments-{{ item.id }}" class="memory-comments"></div>
+         {% if has_list_permission('Create', 'Home') %}
+         <div class="memory-compose">
+            <div class="field textarea border small max">
+               <textarea id="memory-comment-input-{{ item.id }}" maxlength="1200" rows="1"
+                         placeholder="{{ _('Write a comment') }}" aria-label="{{ _('Write a comment') }}"></textarea>
+            </div>
+            <button type="button" class="circle" onclick="postMemoryComment({{ item.id }})"
+                    aria-label="{{ _('Comment') }}" title="{{ _('Comment') }}"><i>send</i></button>
+         </div>
+         {% endif %}
+         <p role="status" class="memory-status" id="memory-comment-status-{{ item.id }}"></p>
+      </section>
+      {% endif %}
    </div>
-   {% if has_list_permission('View', 'Home') %}
-   <div class="padding">
-     <button type="button" class="chip small border" onclick="toggleMemoryDiscussion({{ item.id }})">
-       <i>forum</i>{{ _('Comments and reactions') }}
-     </button>
-     <section id="memory-discussion-{{ item.id }}" hidden aria-label="{{ _('Comments and reactions') }}">
-       <div id="memory-reactions-{{ item.id }}" class="row wrap"></div>
-       <div id="memory-comments-{{ item.id }}"></div>
-       {% if has_list_permission('Create', 'Home') %}
-       <textarea id="memory-comment-input-{{ item.id }}" maxlength="1200" rows="2"
-                 placeholder="{{ _('Write a comment') }}" aria-label="{{ _('Write a comment') }}"></textarea>
-       <button type="button" class="small" onclick="postMemoryComment({{ item.id }})">{{ _('Comment') }}</button>
-       {% endif %}
-       <p role="status" id="memory-comment-status-{{ item.id }}"></p>
-     </section>
-   </div>
-   {% endif %}
 </article>
 {% endfor %}
