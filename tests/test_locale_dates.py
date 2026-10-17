@@ -37,6 +37,14 @@ def test_default_uses_existing_date_presentation(app):
         assert format_string_date_dmy("2026-10-17") == "10/17/2026"
 
 
+def test_background_locale_defaults_without_request_context(app):
+    from app.translation import _
+    from app.filters import format_date_dmy
+    with app.app_context():
+        assert _("Moments") == "Moments"
+        assert format_date_dmy(date(2026, 10, 17)) == "10/17/26"
+
+
 def test_user_locale_does_not_change_process_locale(app, monkeypatch):
     from app.translation import _, set_locale
 

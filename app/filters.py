@@ -6,7 +6,7 @@ from datetime import datetime
 from markupsafe import Markup, escape
 import re as _re
 from babel.dates import format_date as babel_format_date, get_date_format
-from flask import session
+from flask import session, has_request_context
 
 _static_hash_cache = {}
 
@@ -23,7 +23,7 @@ def static_versioned(path):
     return f'/static/{path}?v={_static_hash_cache[path]}'
 
 def _get_babel_locale():
-    lang = session.get('lang', 'en-US')
+    lang = session.get('lang', 'en-US') if has_request_context() else 'en-US'
     return lang.replace('-', '_')
 
 def _get_full_date_pattern(locale):
@@ -37,8 +37,8 @@ DATE_FORMATS = {'dd/MM/yyyy', 'MM/dd/yyyy', 'dd MMM yyyy', 'yyyy-MM-dd'}
 
 
 def _preferred_date_format():
-    date_format = session.get('date_format', 'locale')
-    if date_format == 'locale' and session.get('lang') == 'en-AU':
+    date_format = session.get('date_format', 'locale') if has_request_context() else 'locale'
+    if date_format == 'locale' and has_request_context() and session.get('lang') == 'en-AU':
         return 'dd/MM/yyyy'
     return date_format if date_format in DATE_FORMATS else None
 

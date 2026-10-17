@@ -1,7 +1,7 @@
 import glob
 import json
 from flask_caching import Cache
-from flask import session, request
+from flask import session, request, has_request_context
 from app.models import SessionLocal, Translation
 from app import app
 from app.logger import log
@@ -21,7 +21,7 @@ def load_translation_in_cache():
     log('info', f'Loaded {len(translations)} translations into cache')
 
 def _(fieldName):
-    languageCode = session.get('lang', 'en-US')
+    languageCode = session.get('lang', 'en-US') if has_request_context() else 'en-US'
 
     cache_key = f"translation:{fieldName}:{languageCode}"
     translation = cache.get(cache_key)

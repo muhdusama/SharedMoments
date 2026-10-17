@@ -11,7 +11,7 @@ import json
 import base64
 from io import BytesIO
 from PIL import Image
-from flask import session
+from flask import session, has_request_context
 
 
 def sanitize_identifier(text):
@@ -77,7 +77,7 @@ def _generate_banner_text_couples():
     # Schreibe den ersten Buchstaben klein, damit das in den Text passt
     relationship_status = relationship_status[0].lower() + relationship_status[1:]
 
-    if relationship_status_id == 1 and session.get('lang', 'en-US').startswith('de'): # zusammen klingt im Text besser
+    if relationship_status_id == 1 and has_request_context() and session.get('lang', 'en-US').startswith('de'): # zusammen klingt im Text besser
         relationship_status = 'zusammen'
 
     if relationship_status_id == 1 or relationship_status_id == 4 or relationship_status_id == 5: # in einer Beziehung, in einer offenen Beziehung, in einer komplizierten Beziehung
